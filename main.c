@@ -1,33 +1,114 @@
 /*
- * main.c — Entry point: hardware init, main loop
+ * main.c  —  PS/2 keyboard + mouse input test
  *
- * Responsibilities:
- *   Init sequence (in order):
- *     1. audio_init()            — enable audio core, flush FIFOs
- *     2. ps2_init()              — initialize keyboard; call mouse_init() if using mouse
- *     3. timer_init(DEFAULT_BPM) — set up BPM timer (does not start it yet)
- *     4. interrupts_init()       — enable timer (and PS/2) interrupts, set mtvec
- *     5. pattern_init()          — zero the note grid
- *     6. bg_draw()               — blit background image to VGA pixel buffer
- *     7. draw_grid()             — draw sequencer grid on top of background
- *     8. draw_labels()           — draw note names and step numbers
- *     9. draw_status_bar()       — draw initial BPM, waveform, and PAUSED state
- *    10. ui_init()               — place cursor at (0, 0)
+ * Prints every keyboard event and mouse packet to the JTAG terminal
+ * so you can verify scan codes, break codes, and mouse deltas before
+ * wiring input into the full sequencer.
  *
- *   Main loop (infinite):
- *     - Check timer_tick (set by timer ISR):
- *         If timer_tick == 1 and seq_state == SEQ_PLAYING:
- *           Call engine_step()
- *           Clear timer_tick = 0
- *     - Poll PS/2 for key event:
- *         Call ps2_get_key_event(&evt)
- *         If event ready: call ui_handle_key(evt)
- *     - Poll PS/2 for mouse packet (once mouse function is decided):
- *         Call mouse_read_packet(&pkt)
- *         If packet ready: call ui_handle_mouse(pkt)
+ * Build:  gmake COMPILE   (uses the Makefile in this folder)
+ * Flash:  gmake DE1-SoC
+ * Watch:  gmake TERMINAL
  *
- * Notes:
- *   - No blocking calls in the main loop — everything is poll/flag based
- *   - The only side effects of the main loop are through ui.c, engine.c, and draw.c
- *   - Do not put hardware register accesses directly in main.c
+ * Expected output examples:
+ *   KEY PRESS  : UP
+ *   KEY RELEASE: UP
+ *   KEY PRESS  : SPACE
+ *   MOUSE  dx=+3  dy=-1  L=0 R=1 M=0   <- right-click while moving
  */
+
+#include <stdio.h>
+#include "config.h"
+#include "ps2.h"
+
+/* ── JTAG UART printf target ─────────────────────────────────────────────────
+ * The riscv32 newlib stdio is already wired to the JTAG UART at link time
+ * via the -Wl,--defsym=JTAG_UART_BASE flag in the Makefile, so plain
+ * printf() works without any extra setup.
+ */
+
+/* ── Key name lookup ─────────────────────────────────────────────────────────
+ * Returns a human-readable string for each LogicalKey value.
+ */
+static const char *key_name(LogicalKey k)
+{
+    switch (k)
+    {
+    case KEY_UP:
+        return "UP";
+    case KEY_DOWN:
+        return "DOWN";
+    case KEY_LEFT:
+        return "LEFT";
+    case KEY_RIGHT:
+        return "RIGHT";
+    case KEY_SPACE:
+        return "SPACE";
+    case KEY_ENTER:
+        return "ENTER";
+    case KEY_PLUS:
+        return "PLUS";
+    case KEY_MINUS:
+        return "MINUS";
+    case KEY_ESC:
+        return "ESC";
+    case KEY_UNKNOWN:
+        return "UNKNOWN";
+    default:
+        return "NONE";
+    }
+}
+
+int main(void)
+{
+    printf("=== PS/2 Input Test ===\n");
+    printf("Keyboard: press any mapped key\n");
+    printf("Mouse:    move or right-click\n");
+    printf("=======================\n\n");
+
+    /* Initialise both devices */
+    ps2_init();
+    mouse_init();
+
+    KEY_EVENT evt;
+    MOUSE_PACKET pkt;
+
+    /* Track previous right-button state to print rising/falling edges */
+    int prev_right = 0;
+
+    while (1)
+    {
+        /* ── Keyboard ── */
+        if (ps2_get_key_event(&evt))
+        {
+            if (evt.type == KEY_PRESS)
+                printf("KEY PRESS  : %s\n", key_name(evt.key));
+            else
+                printf("KEY RELEASE: %s\n", key_name(evt.key));
+        }
+
+        /* ── Mouse ── */
+        if (mouse_read_packet(&pkt))
+        {
+            /* Always print movement so you can see deltas */
+            if (pkt.dx != 0 || pkt.dy != 0 ||
+                pkt.left_btn || pkt.right_btn || pkt.middle_btn)
+            {
+
+                printf("MOUSE  dx=%+d  dy=%+d  L=%d R=%d M=%d",
+                       pkt.dx, pkt.dy,
+                       pkt.left_btn, pkt.right_btn, pkt.middle_btn);
+
+                /* Annotate right-click edge */
+                if (pkt.right_btn && !prev_right)
+                    printf("  <- RIGHT PRESS");
+                else if (!pkt.right_btn && prev_right)
+                    printf("  <- RIGHT RELEASE");
+
+                printf("\n");
+            }
+            prev_right = pkt.right_btn;
+        }
+    }
+
+    return 0;
+}
