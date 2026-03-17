@@ -1,8 +1,8 @@
 INSTALL	:= C:/intelFPGA/QUARTUS_Lite_V23.1
 
 MAIN	:= main.c
-HDRS	:= config.h ps2.h
-SRCS	:= main.c ps2.c
+HDRS	:= config.h vga.h ps2.h
+SRCS	:= main.c vga.c ps2.c
 
 SHELL	:= cmd.exe
 
@@ -45,29 +45,21 @@ ARCHLDFLAGS	:= -march=rv32im_zicsr -mabi=ilp32
 CCFLAGS		:= -Wall -c $(USERCCFLAGS) $(ARCHCCFLAGS)
 LDFLAGS		:= $(USERLDFLAGS) $(ARCHLDFLAGS)
 
-# Files
+# Object files derived from SRCS
 OBJS		:= $(patsubst %, %.o, $(SRCS))
 
 ############################################
 # GDB Macros
-
-# Programs
 GDB_SERVER		:= ash-riscv-gdb-server.exe
 GDB_CLIENT		:= riscv32-unknown-elf-gdb.exe
 
 ############################################
 # System Macros
-
-# Programs
 QP_PROGRAMMER	:= quartus_pgm.exe
 
-# Flags
-# DE10-Lite
 SYS_FLAG_CABLE_Lite		:= -c "USB-Blaster [USB-0]"
-# DE1-SoC
 SYS_FLAG_CABLE_SoC 		:= -c "DE-SoC [USB-1]"
 
-# DE10-Lite
 JTAG_INDEX_Lite	:= 1
 RED_TEXT		:= @$(BASH) 'printf "\033[31m"'
 GREEN_TEXT		:= @$(BASH) 'printf "\033[32m"'
@@ -107,7 +99,7 @@ OBJDUMP: $(basename $(MAIN)).elf
 	@echo $(OD) -d -S $<
 	@$(BASH) 'cd "$(CURDIR)"; $(CYGWIN_PATH); $(OD) -d -S $<'
 
-CLEAN: 
+CLEAN:
 	$(RED_TEXT)
 	@$(BASH) 'printf "$(RM) "'
 	$(DEF_TEXT)
@@ -132,13 +124,11 @@ TERMINAL:
 ############################################
 # GDB Targets
 
-GDB_SERVER: 
+GDB_SERVER:
 	$(GDB_SERVER) --device 02D120DD --gdb-port 2454 --instance 1 --probe-type USB-Blaster-2 --transport-type jtag --auto-detect true
 
-GDB_CLIENT: 
+GDB_CLIENT:
 	$(GDB_CLIENT) -silent -ex "target remote:2454" -ex "set $$mstatus=0" -ex "set $$mtvec=0" -ex "load" -ex "set $$pc=_start" -ex "info reg pc" "$(basename $(MAIN)).elf"
 
 ############################################
-# EXTRAS
-
 .SILENT: SYMBOLS OBJDUMP

@@ -1,112 +1,163 @@
 /*
- * main.c  —  PS/2 keyboard + mouse input test
+ * main.c  —  Mouse cursor + right-click dot placement test
  *
- * Prints every keyboard event and mouse packet to the JTAG terminal
- * so you can verify scan codes, break codes, and mouse deltas before
- * wiring input into the full sequencer.
+ * What it does:
+ *   - Clears the screen to dark gray on startup
+ *   - Draws a white crosshair cursor (5x5 cross shape) that follows the mouse
+ *   - On right-click (rising edge): stamps a small red 5x5 box at that position
+ *   - Dots persist on screen; cursor moves freely over them
  *
- * Build:  gmake COMPILE   (uses the Makefile in this folder)
- * Flash:  gmake DE1-SoC
- * Watch:  gmake TERMINAL
+ * Build:   gmake COMPILE
+ * Flash:   gmake DE1-SoC
+ * Watch:   gmake TERMINAL   (optional — prints click coords to JTAG terminal)
  *
- * Expected output examples:
- *   KEY PRESS  : UP
- *   KEY RELEASE: UP
- *   KEY PRESS  : SPACE
- *   MOUSE  dx=+3  dy=-1  L=0 R=1 M=0   <- right-click while moving
+ * Wiring:
+ *   - Mouse must be on PS/2 port 2 (PS2_BASE2 = 0xFF200108)
+ *   - Use the Y-splitter from BA3145/3155/3165 if keyboard is also plugged in
+ *   - If using only the mouse, plug it directly into either PS/2 port and
+ *     change PS2_BASE2 to PS2_BASE (0xFF200100) in config.h
  */
 
 #include <stdio.h>
 #include "config.h"
+#include "vga.h"
 #include "ps2.h"
 
-/* ── JTAG UART printf target ─────────────────────────────────────────────────
- * The riscv32 newlib stdio is already wired to the JTAG UART at link time
- * via the -Wl,--defsym=JTAG_UART_BASE flag in the Makefile, so plain
- * printf() works without any extra setup.
+/* ── Cursor appearance ───────────────────────────────────────────────────────
+ * A simple crosshair: a 1-pixel vertical line and 1-pixel horizontal line,
+ * each 5 pixels long, centred on (mouse_x, mouse_y).
+ * We also draw the single centre pixel in a contrasting color so it's
+ * visible against both light and dark backgrounds.
  */
+#define CURSOR_COLOR COLOR_WHITE
+#define CURSOR_OUTLINE COLOR_BLACK /* 1-pixel black border around cross arms */
+#define CURSOR_SIZE 5              /* arm length each side from centre */
 
-/* ── Key name lookup ─────────────────────────────────────────────────────────
- * Returns a human-readable string for each LogicalKey value.
+/* ── Dot appearance ──────────────────────────────────────────────────────────
+ * Right-click stamps a filled 5x5 red square centred on the click position.
  */
-static const char *key_name(LogicalKey k)
+#define DOT_COLOR COLOR_RED
+#define DOT_SIZE 5
+
+/* ── Background color ────────────────────────────────────────────────────────*/
+#define BG_COLOR RGB565(30, 30, 30) /* dark gray */
+
+/* ── Mouse position (accumulated from deltas) ───────────────────────────────*/
+static int mouse_x = SCREEN_W / 2;
+static int mouse_y = SCREEN_H / 2;
+
+/* Previous cursor position so we can erase it before redrawing */
+static int prev_x = SCREEN_W / 2;
+static int prev_y = SCREEN_H / 2;
+
+/* ── Erase cursor ────────────────────────────────────────────────────────────
+ * Restore the pixels the crosshair was drawn over back to BG_COLOR.
+ * We only erase the cross arms — dots painted underneath will get
+ * partially erased, which is acceptable for a test.
+ * For the real sequencer the cursor will sit on top of the grid cells
+ * and we'll redraw the cell underneath instead.
+ */
+static void erase_cursor(int x, int y)
 {
-    switch (k)
-    {
-    case KEY_UP:
-        return "UP";
-    case KEY_DOWN:
-        return "DOWN";
-    case KEY_LEFT:
-        return "LEFT";
-    case KEY_RIGHT:
-        return "RIGHT";
-    case KEY_SPACE:
-        return "SPACE";
-    case KEY_ENTER:
-        return "ENTER";
-    case KEY_PLUS:
-        return "PLUS";
-    case KEY_MINUS:
-        return "MINUS";
-    case KEY_ESC:
-        return "ESC";
-    case KEY_UNKNOWN:
-        return "UNKNOWN";
-    default:
-        return "NONE";
-    }
+    int i;
+    /* Horizontal arm */
+    for (i = x - CURSOR_SIZE; i <= x + CURSOR_SIZE; i++)
+        vga_draw_pixel(i, y, BG_COLOR);
+    /* Vertical arm */
+    for (i = y - CURSOR_SIZE; i <= y + CURSOR_SIZE; i++)
+        vga_draw_pixel(x, i, BG_COLOR);
 }
 
+/* ── Draw cursor ─────────────────────────────────────────────────────────────
+ * Thin black outline cross then white inner cross, giving a bordered look
+ * that's visible on any background color.
+ */
+static void draw_cursor(int x, int y)
+{
+    int i;
+
+    /* Black outline: draw slightly larger cross first */
+    for (i = x - CURSOR_SIZE - 1; i <= x + CURSOR_SIZE + 1; i++)
+    {
+        vga_draw_pixel(i, y - 1, CURSOR_OUTLINE);
+        vga_draw_pixel(i, y + 1, CURSOR_OUTLINE);
+    }
+    for (i = y - CURSOR_SIZE - 1; i <= y + CURSOR_SIZE + 1; i++)
+    {
+        vga_draw_pixel(x - 1, i, CURSOR_OUTLINE);
+        vga_draw_pixel(x + 1, i, CURSOR_OUTLINE);
+    }
+
+    /* White inner cross */
+    for (i = x - CURSOR_SIZE; i <= x + CURSOR_SIZE; i++)
+        vga_draw_pixel(i, y, CURSOR_COLOR);
+    for (i = y - CURSOR_SIZE; i <= y + CURSOR_SIZE; i++)
+        vga_draw_pixel(x, i, CURSOR_COLOR);
+
+    /* Centre dot in a contrasting color so the hotspot is clear */
+    vga_draw_pixel(x, y, COLOR_CYAN);
+}
+
+/* ── Place dot ───────────────────────────────────────────────────────────────
+ * Stamp a filled DOT_SIZE x DOT_SIZE square centred on (x, y).
+ */
+static void place_dot(int x, int y)
+{
+    int half = DOT_SIZE / 2;
+    vga_draw_rect(x - half, y - half, DOT_SIZE, DOT_SIZE, DOT_COLOR);
+}
+
+/* ── main ────────────────────────────────────────────────────────────────────*/
 int main(void)
 {
-    printf("=== PS/2 Input Test ===\n");
-    printf("Keyboard: press any mapped key\n");
-    printf("Mouse:    move or right-click\n");
-    printf("=======================\n\n");
-
-    /* Initialise both devices */
-    ps2_init();
+    /* Init */
+    vga_clear(BG_COLOR);
     mouse_init();
 
-    KEY_EVENT evt;
-    MOUSE_PACKET pkt;
+    /* Draw initial cursor */
+    draw_cursor(mouse_x, mouse_y);
 
-    /* Track previous right-button state to print rising/falling edges */
-    int prev_right = 0;
+    printf("Mouse test ready.\n");
+    printf("Move mouse to see cursor. Right-click to place a red dot.\n");
+
+    MOUSE_PACKET pkt;
+    int right_prev = 0;
 
     while (1)
     {
-        /* ── Keyboard ── */
-        if (ps2_get_key_event(&evt))
+        if (!mouse_read_packet(&pkt))
+            continue;
+
+        /* ── Update position ── */
+        int new_x = mouse_x + pkt.dx;
+        int new_y = mouse_y + pkt.dy;
+
+        /* Clamp to screen */
+        if (new_x < 0)
+            new_x = 0;
+        if (new_x >= SCREEN_W)
+            new_x = SCREEN_W - 1;
+        if (new_y < 0)
+            new_y = 0;
+        if (new_y >= SCREEN_H)
+            new_y = SCREEN_H - 1;
+
+        /* ── Right-click: place dot on rising edge ── */
+        int right_now = pkt.right_btn;
+        if (right_now && !right_prev)
         {
-            if (evt.type == KEY_PRESS)
-                printf("KEY PRESS  : %s\n", key_name(evt.key));
-            else
-                printf("KEY RELEASE: %s\n", key_name(evt.key));
+            place_dot(new_x, new_y);
+            printf("DOT placed at (%d, %d)\n", new_x, new_y);
         }
+        right_prev = right_now;
 
-        /* ── Mouse ── */
-        if (mouse_read_packet(&pkt))
+        /* ── Redraw cursor only if it moved ── */
+        if (new_x != mouse_x || new_y != mouse_y)
         {
-            /* Always print movement so you can see deltas */
-            if (pkt.dx != 0 || pkt.dy != 0 ||
-                pkt.left_btn || pkt.right_btn || pkt.middle_btn)
-            {
-
-                printf("MOUSE  dx=%+d  dy=%+d  L=%d R=%d M=%d",
-                       pkt.dx, pkt.dy,
-                       pkt.left_btn, pkt.right_btn, pkt.middle_btn);
-
-                /* Annotate right-click edge */
-                if (pkt.right_btn && !prev_right)
-                    printf("  <- RIGHT PRESS");
-                else if (!pkt.right_btn && prev_right)
-                    printf("  <- RIGHT RELEASE");
-
-                printf("\n");
-            }
-            prev_right = pkt.right_btn;
+            erase_cursor(mouse_x, mouse_y);
+            mouse_x = new_x;
+            mouse_y = new_y;
+            draw_cursor(mouse_x, mouse_y);
         }
     }
 

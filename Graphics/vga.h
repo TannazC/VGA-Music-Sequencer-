@@ -1,23 +1,36 @@
-/*
- * vga.h — Low-level VGA pixel and character buffer interface
- *
- * Responsibilities:
- *   - Define VGA pixel buffer base address (VGA_PIXEL_BASE from config.h)
- *   - Define VGA character buffer base address (VGA_CHAR_BASE from config.h)
- *   - Define screen dimensions: SCREEN_W 320, SCREEN_H 240 (pixel mode)
- *   - Define character grid dimensions: CHAR_COLS 80, CHAR_ROWS 60
- *   - Declare vga_clear() — fills entire pixel buffer with a single color
- *   - Declare vga_draw_pixel(x, y, color) — writes one 16-bit RGB565 pixel
- *   - Declare vga_draw_rect(x, y, w, h, color) — fills a rectangle
- *   - Declare vga_draw_char(col, row, c, fg, bg) — writes one ASCII char
- *     to the character buffer at the given grid position
- *   - Declare vga_draw_string(col, row, str, fg, bg) — writes a null-terminated string
- *   - Define RGB565 color macros: COLOR_BLACK, COLOR_WHITE, COLOR_RED,
- *     COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_CYAN, COLOR_GRAY
- *   - Define a macro RGB565(r, g, b) to pack 8-bit r/g/b into a 16-bit value
- *
- * Notes:
- *   - Pixel buffer is word-addressed: address = VGA_PIXEL_BASE + (y << 9) + (x << 1)
- *   - Character buffer: address = VGA_CHAR_BASE + (row * CHAR_COLS + col) * 2
- *   - All drawing is immediate (no double buffering) unless noted in draw.c
+#ifndef VGA_H
+#define VGA_H
+
+#include <stdint.h>
+#include "config.h"
+
+/* ── RGB565 color packing ────────────────────────────────────────────────────
+ * Pack 8-bit r, g, b into a 16-bit RGB565 value.
+ * r: 5 bits (bits 15-11), g: 6 bits (bits 10-5), b: 5 bits (bits 4-0)
  */
+#define RGB565(r, g, b) \
+    ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))
+
+/* Common colors */
+#define COLOR_BLACK   RGB565(  0,   0,   0)
+#define COLOR_WHITE   RGB565(255, 255, 255)
+#define COLOR_RED     RGB565(255,   0,   0)
+#define COLOR_GREEN   RGB565(  0, 255,   0)
+#define COLOR_BLUE    RGB565(  0,   0, 255)
+#define COLOR_YELLOW  RGB565(255, 255,   0)
+#define COLOR_CYAN    RGB565(  0, 255, 255)
+#define COLOR_GRAY    RGB565(128, 128, 128)
+#define COLOR_ORANGE  RGB565(255, 165,   0)
+
+/* ── API ─────────────────────────────────────────────────────────────────────*/
+
+/* Fill the entire screen with one color */
+void vga_clear(uint16_t color);
+
+/* Write a single pixel at (x, y). No-op if out of bounds. */
+void vga_draw_pixel(int x, int y, uint16_t color);
+
+/* Fill a rectangle at (x, y) with size w×h */
+void vga_draw_rect(int x, int y, int w, int h, uint16_t color);
+
+#endif /* VGA_H */
