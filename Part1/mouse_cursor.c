@@ -305,9 +305,9 @@ void draw_treble_clef(int ox, int oy)
 
         for (col = 0; col < render_w; col++) {
             int bitmap_width = 44; // Original bitmap width
-            int bitmap_height = 73; // Original bitmap height
+            int bitmap_height = 38; // Original bitmap height
             
-            src_x = 93 + (col * 44) / render_w;
+            src_x = 38 + (col * 44) / render_w;
 
             byte_idx = (src_y * SHEET_WIDTH_BYTES) + (src_x / 8);
             bit_idx  = 7 - (src_x % 8);
