@@ -485,63 +485,83 @@ int main(void)
     int cx_max = FB_WIDTH  - ARROW_W;
     int cy_max = FB_HEIGHT - ARROW_H;
     int ax = 0, ay = 0;
-    int byte_idx = 0;
-    unsigned char pkt[3];
     int prev_left = 0;
+
+    // NEW: Shifting window variables for the mouse
+    unsigned char byte1 = 0;
+    unsigned char byte2 = 0;
+    unsigned char byte3 = 0;
 
     draw_arrow(cx, cy, BLACK);
 
     while (1)
     {
         int raw = ps2_read_byte(ps2);
-        if (raw < 0) continue;
+        if (raw >= 0) 
+        {
+            /* Shift the new byte into the 3-byte window */
+            byte1 = byte2;
+            byte2 = byte3;
+            byte3 = raw & 0xFF;
 
-        unsigned char b = (unsigned char)raw;
-        if (byte_idx == 0 && !(b & 0x08)) continue;
+            /* A valid PS/2 mouse packet ALWAYS has bit 3 of byte 1 set to 1 */
+            if (byte1 & 0x08) 
+            {
+                unsigned char flags = byte1;
+                int dx = (int)byte2;
+                int dy = (int)byte3;
 
-        pkt[byte_idx++] = b;
-        if (byte_idx < 3) continue;
-        byte_idx = 0;
+                /* Handle sign extensions for negative movement */
+                if (flags & 0x10) dx |= 0xFFFFFF00;
+                if (flags & 0x20) dy |= 0xFFFFFF00;
+                
+                /* Handle overflow (mouse moved too fast) */
+                if (flags & 0xC0) { 
+                    prev_left = (flags & 0x01); 
+                    byte1 = byte2 = byte3 = 0; // Clear window
+                    continue; 
+                }
 
-        unsigned char flags = pkt[0];
-        int dx = (int)pkt[1];
-        int dy = (int)pkt[2];
+                ax += dx; ay += dy;
+                int mx = ax / SPEED_DIV;
+                int my = ay / SPEED_DIV;
+                ax -= mx * SPEED_DIV;
+                ay -= my * SPEED_DIV;
 
-        if (flags & 0x10) dx |= 0xFFFFFF00;
-        if (flags & 0x20) dy |= 0xFFFFFF00;
-        if (flags & 0xC0) { prev_left = (flags & 0x01); continue; }
+                erase_arrow(cx, cy);
 
-        ax += dx; ay += dy;
-        int mx = ax / SPEED_DIV;
-        int my = ay / SPEED_DIV;
-        ax -= mx * SPEED_DIV;
-        ay -= my * SPEED_DIV;
+                cx += mx;
+                cy -= my; // PS/2 Y-axis is inverted relative to VGA Y-axis
 
-        erase_arrow(cx, cy);
+                if (cx < 0)      cx = 0;
+                if (cx > cx_max) cx = cx_max;
+                if (cy < 0)      cy = 0;
+                if (cy > cy_max) cy = cy_max;
 
-        cx += mx;
-        cy -= my;
+                int left_now = (flags & 0x01) ? 1 : 0;
+                if (left_now && !prev_left) {
+                    int btn = button_hit(cx, cy);
+                    if (btn >= 0) {
+                        /* TODO: Play=0, Stop=1, Speed+=2, Speed-=3 */
+                    } else if (cy >= MENUBAR_H && num_dots < MAX_DOTS) {
+                        dot_x[num_dots] = cx;
+                        dot_y[num_dots] = cy;
+                        num_dots++;
+                        draw_dot(cx, cy);
+                    }
+                }
+                prev_left = left_now;
 
-        if (cx < 0)      cx = 0;
-        if (cx > cx_max) cx = cx_max;
-        if (cy < 0)      cy = 0;
-        if (cy > cy_max) cy = cy_max;
+                draw_arrow(cx, cy, BLACK);
 
-        int left_now = (flags & 0x01) ? 1 : 0;
-        if (left_now && !prev_left) {
-            int btn = button_hit(cx, cy);
-            if (btn >= 0) {
-                /* TODO: Play=0, Stop=1, Speed+=2, Speed-=3 */
-            } else if (cy >= MENUBAR_H && num_dots < MAX_DOTS) {
-                dot_x[num_dots] = cx;
-                dot_y[num_dots] = cy;
-                num_dots++;
-                draw_dot(cx, cy);
+                /* Clear the window! 
+                   This forces the loop to wait for 3 brand new bytes 
+                   before (byte1 & 0x08) can trigger true again. */
+                byte1 = 0;
+                byte2 = 0;
+                byte3 = 0;
             }
         }
-        prev_left = left_now;
-
-        draw_arrow(cx, cy, BLACK);
 
         pixel_buffer_start = *pixel_ctrl;
     }
