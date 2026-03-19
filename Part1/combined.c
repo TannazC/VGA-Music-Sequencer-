@@ -1,5 +1,4 @@
 #include <stdlib.h>
-
 #define CLEF_BMP_W  12
 #define CLEF_BMP_H  36
 
@@ -32,15 +31,16 @@ static const unsigned short treble_clef_bmp[CLEF_BMP_H] = {
     /* row 25 */  0x202,  /* ..#.......#. */
     /* row 26 */  0x18C,  /* ...##...##.. */
     /* row 27 */  0x078,  /* .....####... */
-    /* row 28 */  0x008,  /* ........##.. */
-    /* row 29 */  0x000,  /* .........##. */
-    /* row 30 */  0x0C4,  /* ....##...##. */
-    /* row 31 */  0x1E4,  /* ...####..##. */
+    /* row 28 */  0x008,  /* ........#... */
+    /* row 29 */  0x000,  /* .........#.. */
+    /* row 30 */  0x0C4,  /* ....##...#.. */
+    /* row 31 */  0x1E4,  /* ...####..#.. */
     /* row 32 */  0x1E4,  /* ...####..#.. */
     /* row 33 */  0x1E4,  /* ...####..#.. */
     /* row 34 */  0x1C8,  /* ...###..#... */
     /* row 35 */  0x0F0,  /* ....####.... */
 };
+
 
 /* ── Frame-buffer dimensions ── */
 #define FB_WIDTH    320
@@ -62,6 +62,7 @@ extern short int bg[FB_HEIGHT][FB_WIDTH];
    startup after pixel_buffer_start is set.                              */
 void build_and_draw_background(void);
 
+
 /* ═══════════════════════════════════════════════════════════════════════
    Colours RGB565
    ═══════════════════════════════════════════════════════════════════════ */
@@ -75,7 +76,7 @@ short int bg[FB_HEIGHT][FB_WIDTH];
 extern int pixel_buffer_start;
 
 /* Top line of each staff (screen y-coordinate) */
-static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
+static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180};
 
 /* ═══════════════════════════════════════════════════════════════════════
    Helper: write one pixel to both bg[][] and the frame buffer.
@@ -163,12 +164,8 @@ void build_and_draw_background(void)
     for (s = 0; s < NUM_STAVES; s++)
         draw_treble_clef(STAFF_X0 + 1, staff_top[s] - STAFF_SPACING);
 }
-/* ═══════════════════════════════════════════════════════════════════════
-   VGA frame-buffer
-   512-wide x 256-tall in memory, stride = y<<10 (1024 bytes/row).
-   VGA doubles to 640x480. Visible region: 320 x 240.
-   FB_WIDTH and FB_HEIGHT are defined in background.h
-   ═══════════════════════════════════════════════════════════════════════ */
+
+
 
 /* Arrow glyph size */
 #define ARROW_W     11
