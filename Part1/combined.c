@@ -1,26 +1,65 @@
 #include <stdlib.h>
 
+#define CLEF_BMP_W  12
+#define CLEF_BMP_H  36
+
+static const unsigned short treble_clef_bmp[CLEF_BMP_H] = {
+    /* row  0 */  0x038,  /* ......###... */
+    /* row  1 */  0x078,  /* .....####... */
+    /* row  2 */  0x06C,  /* .....##.##.. */
+    /* row  3 */  0x044,  /* .....#...#.. */
+    /* row  4 */  0x044,  /* .....#...#.. */
+    /* row  5 */  0x0C4,  /* ....##...#.. */
+    /* row  6 */  0x0CC,  /* ....##..##.. */
+    /* row  7 */  0x08C,  /* ....#...##.. */
+    /* row  8 */  0x09C,  /* ....#..###.. */
+    /* row  9 */  0x058,  /* .....#.##... */
+    /* row 10 */  0x070,  /* .....###.... */
+    /* row 11 */  0x070,  /* .....###.... */
+    /* row 12 */  0x0E0,  /* ....###..... */
+    /* row 13 */  0x1E0,  /* ...####..... */
+    /* row 14 */  0x3C0,  /* ..####...... */
+    /* row 15 */  0x3E0,  /* ..#####..... */
+    /* row 16 */  0x720,  /* .###..#..... */
+    /* row 17 */  0xE38,  /* ###...###... */
+    /* row 18 */  0xE7C,  /* ###..#####.. */
+    /* row 19 */  0xCFE,  /* ##..#######. */
+    /* row 20 */  0xCF7,  /* ##..####.### */
+    /* row 21 */  0xC93,  /* ##..#..#..## */
+    /* row 22 */  0xC93,  /* ##..#..#..## */
+    /* row 23 */  0x493,  /* .#..#..#..## */
+    /* row 24 */  0x413,  /* .#.....#..## */
+    /* row 25 */  0x202,  /* ..#.......#. */
+    /* row 26 */  0x18C,  /* ...##...##.. */
+    /* row 27 */  0x078,  /* .....####... */
+    /* row 28 */  0x008,  /* ........##.. */
+    /* row 29 */  0x000,  /* .........##. */
+    /* row 30 */  0x0C4,  /* ....##...##. */
+    /* row 31 */  0x1E4,  /* ...####..##. */
+    /* row 32 */  0x1E4,  /* ...####..#.. */
+    /* row 33 */  0x1E4,  /* ...####..#.. */
+    /* row 34 */  0x1C8,  /* ...###..#... */
+    /* row 35 */  0x0F0,  /* ....####.... */
+};
+
 /* ── Frame-buffer dimensions ── */
 #define FB_WIDTH    320
 #define FB_HEIGHT   240
 
-/* ── Staff layout (exposed so callers can snap notes to lines) ──────────
-   staff_top[s]  : y of the topmost line of staff s  (extern in background.c)
-   STAFF_SPACING : pixels between adjacent lines
-   LINES_PER_STAFF, NUM_STAVES : array bounds                            */
+/* ── Staff layout ───────────────────────────────────────────────────────
+   4 lines per staff, 12 px between lines → each staff is 36 px tall.
+   Two staves fit comfortably in 240 px with room between them.          */
 #define NUM_STAVES      4
 #define LINES_PER_STAFF 5
-#define STAFF_SPACING   8
+#define STAFF_SPACING   6
 #define STAFF_X0        20
 #define STAFF_X1       (FB_WIDTH - 10)
 
-/* Precomputed background: one RGB565 value per visible pixel.
-   Exposed so restore_pixel (in vga_music_v2.c) can read bg[y][x].      */
+/* Precomputed background array — read by restore_pixel in vga_music_v2.c */
 extern short int bg[FB_HEIGHT][FB_WIDTH];
 
-/* Build bg[][] procedurally (staff lines + treble clefs) AND blit to
-   the frame buffer.  Call once at startup after pixel_buffer_start is
-   set.                                                                   */
+/* Build bg[][] procedurally and blit to frame buffer. Call once at
+   startup after pixel_buffer_start is set.                              */
 void build_and_draw_background(void);
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -29,43 +68,29 @@ void build_and_draw_background(void);
 #define WHITE  ((short int)0xFFFF)
 #define BLACK  ((short int)0x0000)
 
-/* Precomputed background: one RGB565 value per visible pixel (320x240).
-   Stored in a flat array so bg lookup is a single array read.           */
+/* Precomputed background: one RGB565 value per visible pixel (320x240). */
 short int bg[FB_HEIGHT][FB_WIDTH];
 
 /* Provided by vga_music_v2.c */
 extern int pixel_buffer_start;
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Staff layout
-   ───────────────────────────────────────────────────────────────────────
-   Two staves, each with 5 horizontal lines spaced STAFF_SPACING px apart.
-   STAFF_X0 / STAFF_X1 : left and right x extents of each staff.
-   staff_top[] : y-coordinate of the topmost line for each staff.
-   ═══════════════════════════════════════════════════════════════════════ */
-#define NUM_STAVES      2
-#define LINES_PER_STAFF 5
-#define STAFF_SPACING   8          /* pixels between adjacent staff lines */
-#define STAFF_X0        20         /* leave room for treble-clef glyph    */
-#define STAFF_X1       (FB_WIDTH - 10)
-
 /* Top line of each staff (screen y-coordinate) */
-static const int staff_top[NUM_STAVES] = { 52, 148 };
+static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Helper: write one pixel to both bg[][] and the frame buffer
+   Helper: write one pixel to both bg[][] and the frame buffer.
+   BOUNDS CHECK REQUIRED — an out-of-range write here silently corrupts
+   pixel_buffer_start and kills the mouse.
    ═══════════════════════════════════════════════════════════════════════ */
 static void bg_plot(int x, int y, short int c)
 {
+    if (x < 0 || x >= FB_WIDTH || y < 0 || y >= FB_HEIGHT) return;
     bg[y][x] = c;
     *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = c;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Draw staff lines
-   ───────────────────────────────────────────────────────────────────────
-   Draws NUM_STAVES staves of LINES_PER_STAFF horizontal black lines each,
-   spaced STAFF_SPACING pixels apart, across x = [STAFF_X0, STAFF_X1).
    ═══════════════════════════════════════════════════════════════════════ */
 static void draw_staves(void)
 {
@@ -80,10 +105,7 @@ static void draw_staves(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Draw vertical bar lines
-   ───────────────────────────────────────────────────────────────────────
-   Left and right bar lines that frame each staff (spanning only the
-   height of the staff from top line to bottom line).
+   Draw vertical bar lines (left + right ends of each staff)
    ═══════════════════════════════════════════════════════════════════════ */
 static void draw_barlines(void)
 {
@@ -92,86 +114,35 @@ static void draw_barlines(void)
         int y0 = staff_top[s];
         int y1 = staff_top[s] + (LINES_PER_STAFF - 1) * STAFF_SPACING;
         for (y = y0; y <= y1; y++) {
-            bg_plot(STAFF_X0,     y, BLACK);   /* left bar  */
-            bg_plot(STAFF_X1 - 1, y, BLACK);   /* right bar */
+            bg_plot(STAFF_X0,     y, BLACK);
+            bg_plot(STAFF_X1 - 1, y, BLACK);
         }
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Treble clef pixel glyph
-   ───────────────────────────────────────────────────────────────────────
-   A 10 x 32 pixel-art treble clef, stored as 32 bytes (1 bit per column,
-   MSB = column 0).  Drawn with its baseline on the second staff line
-   (B4 line) of each staff, which is standard notation placement.
+   Draw treble clef from bitmap
    ═══════════════════════════════════════════════════════════════════════ */
-#define CLEF_W  10
-#define CLEF_H  32
-
-static const unsigned short clef_glyph[CLEF_H] = {
-    /*  row  0 */ 0x030, /*    ##              */
-    /*  row  1 */ 0x078, /*   ####             */
-    /*  row  2 */ 0x0FC, /*  ######            */
-    /*  row  3 */ 0x0CC, /*  ##  ##            */
-    /*  row  4 */ 0x0CC, /*  ##  ##            */
-    /*  row  5 */ 0x0F8, /*  #####             */
-    /*  row  6 */ 0x1E0, /* ####               */
-    /*  row  7 */ 0x3C0, /*##  ##  (curve out) */
-    /*  row  8 */ 0x3C0, /*##  ##              */
-    /*  row  9 */ 0x1E0, /* ####               */
-    /*  row 10 */ 0x0F8, /*  #####             */
-    /*  row 11 */ 0x0FC, /*  ######            */
-    /*  row 12 */ 0x0CE, /*  ##  ###           */
-    /*  row 13 */ 0x0C6, /*  ##   ##           */
-    /*  row 14 */ 0x0C6, /*  ##   ##           */
-    /*  row 15 */ 0x0EE, /*  ### ###           */
-    /*  row 16 */ 0x07C, /*   #####            */
-    /*  row 17 */ 0x038, /*    ###             */
-    /*  row 18 */ 0x030, /*    ##              */
-    /*  row 19 */ 0x030, /*    ##              */
-    /*  row 20 */ 0x030, /*    ##   (stem)     */
-    /*  row 21 */ 0x030, /*    ##              */
-    /*  row 22 */ 0x030, /*    ##              */
-    /*  row 23 */ 0x070, /*   ###              */
-    /*  row 24 */ 0x0F8, /*  #####             */
-    /*  row 25 */ 0x1FC, /* #######            */
-    /*  row 26 */ 0x386, /*###    ##           */
-    /*  row 27 */ 0x306, /*##     ##           */
-    /*  row 28 */ 0x306, /*##     ##           */
-    /*  row 29 */ 0x1CC, /* ###  ##            */
-    /*  row 30 */ 0x0F8, /*  #####             */
-    /*  row 31 */ 0x030, /*    ##              */
-};
-
 static void draw_treble_clef(int x0, int y0)
 {
     int row, col;
-    for (row = 0; row < CLEF_H; row++) {
-        unsigned short bits = clef_glyph[row];
-        for (col = 0; col < CLEF_W; col++) {
-            /* MSB of a 10-bit field maps to col 0 */
-            if (bits & (1 << (CLEF_W - 1 - col))) {
-                int px = x0 + col;
-                int py = y0 + row;
-                if (px >= 0 && px < FB_WIDTH && py >= 0 && py < FB_HEIGHT)
-                    bg_plot(px, py, BLACK);
-            }
+    for (row = 0; row < CLEF_BMP_H; row++) {
+        unsigned short bits = treble_clef_bmp[row];
+        for (col = 0; col < CLEF_BMP_W; col++) {
+            if (bits & (1 << (CLEF_BMP_W - 1 - col)))
+                bg_plot(x0 + col, y0 + row, BLACK);  /* bg_plot guards bounds */
         }
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    build_and_draw_background
-   ───────────────────────────────────────────────────────────────────────
-   1. Wipes the full 512x256 frame buffer and bg[][] to white.
-   2. Draws staff lines, bar lines, and treble clefs procedurally.
-   Call once at startup after pixel_buffer_start is set.
    ═══════════════════════════════════════════════════════════════════════ */
 void build_and_draw_background(void)
 {
-    int x, y;
+    int x, y, s;
 
-    /* ── Fill entire frame buffer (including non-visible border) white ── */
+    /* Fill entire frame buffer (including non-visible border) white */
     for (y = 0; y < 256; y++) {
         volatile short int *row =
             (volatile short int *)(pixel_buffer_start + (y << 10));
@@ -179,22 +150,18 @@ void build_and_draw_background(void)
             row[x] = WHITE;
     }
 
-    /* ── Initialise bg[][] to white ── */
+    /* Initialise bg[][] to white */
     for (y = 0; y < FB_HEIGHT; y++)
         for (x = 0; x < FB_WIDTH; x++)
             bg[y][x] = WHITE;
 
-    /* ── Draw music notation elements ── */
     draw_staves();
     draw_barlines();
 
-    /* Place treble clef: top of glyph sits one STAFF_SPACING above the
-       top staff line so the curl lands on the correct pitch line.       */
-    int s;
-    for (s = 0; s < NUM_STAVES; s++) {
-        int clef_y = staff_top[s] - STAFF_SPACING;   /* one space above top line */
-        draw_treble_clef(STAFF_X0 + 1, clef_y);
-    }
+    /* Treble clef: top of bitmap sits one STAFF_SPACING above the top
+       staff line so the curl aligns with the correct pitch position.   */
+    for (s = 0; s < NUM_STAVES; s++)
+        draw_treble_clef(STAFF_X0 + 1, staff_top[s] - STAFF_SPACING);
 }
 /* ═══════════════════════════════════════════════════════════════════════
    VGA frame-buffer
@@ -369,7 +336,7 @@ int main(void)
     /* ── Init mouse FIRST so FIFO doesn't overflow during background draw ── */
     mouse_init();
 
-    /* ── Build background procedurally + draw to frame buffer ── */
+    /* ── Build background lookup table + draw to frame buffer ── */
     build_and_draw_background();
 
     /* Cursor position — clamp so entire arrow glyph stays on screen */
