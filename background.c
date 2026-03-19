@@ -13,8 +13,12 @@ short int bg[FB_HEIGHT][FB_WIDTH];
 /* Provided by vga_music_v2.c */
 extern int pixel_buffer_start;
 
+/* PS/2 base address — needed to flush the FIFO after the long draw */
+#define PS2_BASE    0xFF200100
+#define PS2_RVALID  0x8000
+
 /* Top line of each staff (screen y-coordinate) */
-static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180};
+static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
 
 /* ═══════════════════════════════════════════════════════════════════════
    Helper: write one pixel to both bg[][] and the frame buffer.
@@ -101,4 +105,17 @@ void build_and_draw_background(void)
        staff line so the curl aligns with the correct pitch position.   */
     for (s = 0; s < NUM_STAVES; s++)
         draw_treble_clef(STAFF_X0 + 1, staff_top[s] - STAFF_SPACING);
+
+    /* ── Flush the PS/2 FIFO ─────────────────────────────────────────────
+       The background draw takes long enough that the mouse accumulates
+       several bytes in the FIFO while we work.  If any of those stale
+       delta bytes happen to have bit 3 set they will be mistaken for a
+       valid flags byte by the packet-sync logic in vga_music_v2.c, and
+       the mouse locks up permanently.  Draining here guarantees the main
+       loop always starts at the beginning of a fresh packet.
+       ─────────────────────────────────────────────────────────────────── */
+    {
+        volatile int *ps2 = (volatile int *)PS2_BASE;
+        while (*ps2 & PS2_RVALID) (void)(*ps2);
+    }
 }
