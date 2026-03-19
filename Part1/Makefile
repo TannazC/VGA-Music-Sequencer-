@@ -112,10 +112,10 @@ OBJDUMP: $(basename $(MAIN)).elf
 
 CLEAN: 
 	$(RED_TEXT)
-	@$(BASH) 'printf "$(RM) "'
+	@$(BASH) 'printf "$(RM) *.o *.elf "'
 	$(DEF_TEXT)
-	@echo $(basename $(MAIN)).elf $(OBJS)
-	@$(BASH) 'cd "$(CURDIR)"; $(RM) $(basename $(MAIN)).elf $(OBJS)'
+	@echo
+	@$(BASH) 'cd "$(CURDIR)"; $(RM) *.o *.elf'
 
 ############################################
 # System Targets
