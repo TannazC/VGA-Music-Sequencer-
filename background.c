@@ -2,45 +2,102 @@
 #include "treble_clef_bitmap.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Colours RGB565
+   Colours (RGB565 format)
    ═══════════════════════════════════════════════════════════════════════ */
 #define WHITE  ((short int)0xFFFF)
 #define BLACK  ((short int)0x0000)
 
-/* Precomputed background: one RGB565 value per visible pixel (320x240). */
+/* ═══════════════════════════════════════════════════════════════════════
+   Background buffer
+
+   Stores one colour per visible pixel (320 x 240).
+   This acts as a "ground truth" copy of the screen so we can restore
+   pixels correctly when the cursor moves.
+
+   Important:
+   We NEVER read back from VGA memory directly — we always use bg[][]
+   ═══════════════════════════════════════════════════════════════════════ */
 short int bg[FB_HEIGHT][FB_WIDTH];
 
-/* Provided by vga_music_v2.c */
+/* Provided by main VGA file — this is the base address of the frame buffer */
 extern int pixel_buffer_start;
 
-/* PS/2 base address — needed to flush the FIFO after the long draw */
+/* PS/2 hardware (used only for FIFO flush at the end) */
 #define PS2_BASE    0xFF200100
 #define PS2_RVALID  0x8000
 
-/* Top line of each staff (screen y-coordinate) */
+/* Top y-coordinate for each musical staff */
 static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Helper: write one pixel to both bg[][] and the frame buffer.
-   BOUNDS CHECK REQUIRED — an out-of-range write here silently corrupts
-   pixel_buffer_start and kills the mouse.
+   bg_plot
+
+   Writes a pixel BOTH:
+     1. into bg[][] (software copy)
+     2. into VGA memory (hardware display)
+
+   This is critical because:
+     - bg[][] is used later to restore pixels (cursor erase)
+     - VGA memory is what actually shows on screen
+
+   Parameters:
+     x -> x-coordinate
+     y -> y-coordinate
+     c -> colour (RGB565)
+
+   Input:
+     pixel position + colour
+
+   Output:
+     none
+
+   Side effects:
+     updates both software buffer AND hardware frame buffer
+
+   WARNING:
+     Bounds checking is mandatory — writing out of bounds corrupts
+     memory and can break unrelated hardware (like PS/2 mouse).
    ═══════════════════════════════════════════════════════════════════════ */
 static void bg_plot(int x, int y, short int c)
 {
     if (x < 0 || x >= FB_WIDTH || y < 0 || y >= FB_HEIGHT) return;
+
     bg[y][x] = c;
+
     *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = c;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Draw staff lines
+   draw_staves
+
+   Draws the 5 horizontal lines for each musical staff.
+
+   Structure:
+     - NUM_STAVES staffs total
+     - each staff has LINES_PER_STAFF lines
+     - vertical spacing between lines = STAFF_SPACING
+
+   Parameters:
+     none
+
+   Input:
+     constants (staff positions, spacing)
+
+   Output:
+     none
+
+   Side effect:
+     draws horizontal black lines into bg[][] and VGA
    ═══════════════════════════════════════════════════════════════════════ */
 static void draw_staves(void)
 {
     int s, l, x;
+
     for (s = 0; s < NUM_STAVES; s++) {
         for (l = 0; l < LINES_PER_STAFF; l++) {
+
             int y = staff_top[s] + l * STAFF_SPACING;
+
             for (x = STAFF_X0; x < STAFF_X1; x++)
                 bg_plot(x, y, BLACK);
         }
@@ -48,14 +105,33 @@ static void draw_staves(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Draw vertical bar lines (left + right ends of each staff)
+   draw_barlines
+
+   Draws vertical boundary lines at the left and right edges of each staff.
+
+   These define the start and end of each measure visually.
+
+   Parameters:
+     none
+
+   Input:
+     staff positions
+
+   Output:
+     none
+
+   Side effect:
+     draws vertical black lines into bg[][] and VGA
    ═══════════════════════════════════════════════════════════════════════ */
 static void draw_barlines(void)
 {
     int s, y;
+
     for (s = 0; s < NUM_STAVES; s++) {
+
         int y0 = staff_top[s];
         int y1 = staff_top[s] + (LINES_PER_STAFF - 1) * STAFF_SPACING;
+
         for (y = y0; y <= y1; y++) {
             bg_plot(STAFF_X0,     y, BLACK);
             bg_plot(STAFF_X1 - 1, y, BLACK);
@@ -64,58 +140,123 @@ static void draw_barlines(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Draw treble clef from bitmap
+   draw_treble_clef
+
+   Draws a treble clef using a bitmap (bitmask per row).
+
+   How it works:
+     - each row is a 16-bit value (treble_clef_bmp[row])
+     - each bit represents whether a pixel should be drawn
+     - we scan across bits and draw where bit = 1
+
+   Parameters:
+     x0 -> left position where bitmap starts
+     y0 -> top position where bitmap starts
+
+   Input:
+     bitmap + placement coordinates
+
+   Output:
+     none
+
+   Side effect:
+     draws the clef into bg[][] and VGA
+
+   Note:
+     bg_plot handles bounds checking, so no need here
    ═══════════════════════════════════════════════════════════════════════ */
 static void draw_treble_clef(int x0, int y0)
 {
     int row, col;
+
     for (row = 0; row < CLEF_BMP_H; row++) {
+
         unsigned short bits = treble_clef_bmp[row];
+
         for (col = 0; col < CLEF_BMP_W; col++) {
+
+            /* Check if this bit is set (pixel should be drawn) */
             if (bits & (1 << (CLEF_BMP_W - 1 - col)))
-                bg_plot(x0 + col, y0 + row, BLACK);  /* bg_plot guards bounds */
+                bg_plot(x0 + col, y0 + row, BLACK);
         }
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    build_and_draw_background
+
+   Builds the entire background once at startup.
+
+   Steps:
+     1. clear full VGA memory (including hidden region)
+     2. initialise bg[][] to match (all white)
+     3. draw musical staves
+     4. draw barlines
+     5. draw treble clefs
+     6. flush PS/2 FIFO to avoid corrupted mouse packets
+
+   Parameters:
+     none
+
+   Input:
+     none
+
+   Output:
+     none
+
+   Side effects:
+     fully initializes the screen and bg[][] buffer
    ═══════════════════════════════════════════════════════════════════════ */
 void build_and_draw_background(void)
 {
     int x, y, s;
 
-    /* Fill entire frame buffer (including non-visible border) white */
+    /* ── Step 1: clear full frame buffer (512 x 256, not just visible area) ──
+       This ensures no garbage remains in off-screen memory */
     for (y = 0; y < 256; y++) {
+
         volatile short int *row =
             (volatile short int *)(pixel_buffer_start + (y << 10));
+
         for (x = 0; x < 512; x++)
             row[x] = WHITE;
     }
 
-    /* Initialise bg[][] to white */
+    /* ── Step 2: initialise bg[][] to match screen (all white) ── */
     for (y = 0; y < FB_HEIGHT; y++)
         for (x = 0; x < FB_WIDTH; x++)
             bg[y][x] = WHITE;
 
+    /* ── Step 3–4: draw staff structure ── */
     draw_staves();
     draw_barlines();
 
-    /* Treble clef: top of bitmap sits one STAFF_SPACING above the top
-       staff line so the curl aligns with the correct pitch position.   */
+    /* ── Step 5: draw treble clefs ──
+       Positioned slightly above the top staff line so that the
+       spiral aligns with the correct pitch reference */
     for (s = 0; s < NUM_STAVES; s++)
-        draw_treble_clef(STAFF_X0 + 1, staff_top[s] - STAFF_SPACING);
+        draw_treble_clef(STAFF_X0 + 1,
+                         staff_top[s] - STAFF_SPACING);
 
-    /* ── Flush the PS/2 FIFO ─────────────────────────────────────────────
-       The background draw takes long enough that the mouse accumulates
-       several bytes in the FIFO while we work.  If any of those stale
-       delta bytes happen to have bit 3 set they will be mistaken for a
-       valid flags byte by the packet-sync logic in vga_music_v2.c, and
-       the mouse locks up permanently.  Draining here guarantees the main
-       loop always starts at the beginning of a fresh packet.
+    /* ── Step 6: flush PS/2 FIFO ─────────────────────────────────────────
+       Why this matters:
+
+       Drawing the background takes a noticeable amount of time.
+       During this time, the mouse continues sending movement bytes.
+
+       If we do NOT flush:
+         - leftover bytes stay in the FIFO
+         - packet alignment breaks
+         - main loop misinterprets data
+         - mouse appears "frozen" or glitchy
+
+       Fix:
+         drain everything before entering main loop
        ─────────────────────────────────────────────────────────────────── */
     {
         volatile int *ps2 = (volatile int *)PS2_BASE;
-        while (*ps2 & PS2_RVALID) (void)(*ps2);
+
+        while (*ps2 & PS2_RVALID)
+            (void)(*ps2);
     }
 }
