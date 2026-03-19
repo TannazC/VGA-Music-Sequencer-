@@ -1,13 +1,12 @@
 #include <stdlib.h>
-#include "sheet_music_pixels.h"
 #include "background.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    VGA frame-buffer
    512-wide x 256-tall in memory, stride = y<<10 (1024 bytes/row).
    VGA doubles to 640x480. Visible region: 320 x 240.
+   FB_WIDTH and FB_HEIGHT are defined in background.h
    ═══════════════════════════════════════════════════════════════════════ */
-/* FB_WIDTH and FB_HEIGHT are defined in background.h */
 
 /* Arrow glyph size */
 #define ARROW_W     11
