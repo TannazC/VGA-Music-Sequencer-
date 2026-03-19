@@ -1,533 +1,473 @@
-#include <stdlib.h>
-#include "background.h"
+#include <stdlib.h>          // gives access to standard utilities; not heavily used here but commonly included
+#include "background.h"      // includes screen size constants, background declarations, and helper prototypes
 
 /* ═══════════════════════════════════════════════════════════════════════
-   VGA frame buffer notes
+   VGA frame-buffer notes
 
-   The pixel buffer is stored in memory as a 512 x 256 region, even though
-   the visible VGA area is only 320 x 240.
+   The actual frame buffer in memory is larger than the visible screen.
+   We only display 320 x 240, but memory is laid out as 512 x 256.
 
-   Addressing works like this:
-     - each row is 1024 bytes apart  ->  y << 10
-     - each pixel is 2 bytes         ->  x << 1
+   Each row takes 1024 bytes because:
+     512 pixels/row * 2 bytes/pixel = 1024 bytes
 
-   So the address of pixel (x, y) is:
-       pixel_buffer_start + (y << 10) + (x << 1)
+   So:
+     y << 10  means multiply y by 1024 bytes
+     x << 1   means multiply x by 2 bytes per pixel
 
-   The VGA hardware scales this visible region to the display.
-   FB_WIDTH and FB_HEIGHT come from background.h
+   Visible drawing area:
+     x = 0 to 319
+     y = 0 to 239
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Arrow cursor dimensions */
-#define ARROW_W     11
-#define ARROW_H     16
+/* Arrow cursor dimensions in pixels */
+#define ARROW_W     11       // cursor is 11 pixels wide
+#define ARROW_H     16       // cursor is 16 pixels tall
 
-/* Memory-mapped hardware base addresses */
-#define PIXEL_BUF_CTRL  0xFF203020   /* VGA pixel buffer controller */
-#define PS2_BASE        0xFF200100   /* PS/2 port base address */
-#define PS2_RVALID      0x8000       /* bit set when PS/2 data is available */
+/* Hardware base addresses */
+#define PIXEL_BUF_CTRL  0xFF203020   // VGA pixel buffer controller register base
+#define PS2_BASE        0xFF200100   // PS/2 port data register base
+#define PS2_RVALID      0x8000       // bit mask showing whether PS/2 data is available
 
-/* Mouse speed scaling
-   Larger divisor = slower cursor movement on screen */
-#define SPEED_DIV   2
+/* Mouse speed control */
+#define SPEED_DIV   2        // divides mouse movement so cursor moves slower and is easier to control
 
-/* Dot drawing settings */
-#define DOT_R       3                /* radius of a click dot */
-#define MAX_DOTS    256              /* maximum number of stored dots */
+/* Dot settings */
+#define DOT_R       3        // each click creates a filled circle of radius 3
+#define MAX_DOTS    256      // cap the number of dots so arrays do not overflow
 
 /* RGB565 colours */
-#define WHITE  ((short int)0xFFFF)
-#define BLACK  ((short int)0x0000)
+#define WHITE  ((short int)0xFFFF)   // white in 16-bit RGB565 format
+#define BLACK  ((short int)0x0000)   // black in 16-bit RGB565 format
 
 /* ═══════════════════════════════════════════════════════════════════════
    Global variables
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Holds the current frame buffer base address */
-int pixel_buffer_start;
+int pixel_buffer_start;      // stores the base address of the active VGA frame buffer
 
-/* bg[][] is defined in background.c and declared extern in background.h
-   It stores the background colour for every pixel */
+/* bg[][] lives in background.c and is declared extern in background.h
+   It stores the original background pixel colours for restoration. */
 
-/* Arrays storing the centre position of each placed dot */
-int dot_x[MAX_DOTS];
-int dot_y[MAX_DOTS];
-int num_dots = 0;    /* current number of dots on the screen */
+int dot_x[MAX_DOTS];         // x-coordinate of each stored click dot
+int dot_y[MAX_DOTS];         // y-coordinate of each stored click dot
+int num_dots = 0;            // current number of dots already placed on screen
 
 /* ═══════════════════════════════════════════════════════════════════════
    plot_pixel
 
-   Writes one pixel to the frame buffer if the coordinates are on-screen.
+   Draws one pixel directly into VGA memory.
 
-   Parameters:
-     x  -> x-coordinate of the pixel
-     y  -> y-coordinate of the pixel
-     c  -> 16-bit RGB565 colour to write
-
-   Input:
-     screen coordinates and colour
+   Inputs:
+     x -> screen x-coordinate
+     y -> screen y-coordinate
+     c -> RGB565 colour
 
    Output:
      none
 
-   Side effect:
-     directly writes to VGA memory
+   Main job:
+     convert (x, y) into a byte address in the frame buffer and store c
    ═══════════════════════════════════════════════════════════════════════ */
 void plot_pixel(int x, int y, short int c)
 {
-    /* Ignore any attempt to draw off-screen */
-    if (x < 0 || x >= FB_WIDTH)  return;
-    if (y < 0 || y >= FB_HEIGHT) return;
+    if (x < 0 || x >= FB_WIDTH)  return;     // do nothing if x is outside visible screen range
+    if (y < 0 || y >= FB_HEIGHT) return;     // do nothing if y is outside visible screen range
 
     *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = c;
+    // compute pixel address and write colour directly into VGA memory
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    restore_pixel
 
-   Restores one pixel to whatever should be underneath the cursor.
-   When the cursor is erased, we cannot blindly redraw the background,
-   because the cursor may be sitting on top of a previously placed dot!!!!!!!!!!!!!!
+   Restores one pixel after erasing the cursor.
 
-   So this function checks:
-     1. is this pixel inside any stored black dot?
-        -> redraw BLACK
-     2. otherwise
-        -> redraw the original background pixel from bg[][]
+   Why needed:
+   The cursor moves around on top of the background and click dots.
+   When we erase the cursor, we must restore whatever was underneath.
 
-   Parameters:
-     x  -> x-coordinate of the pixel to restore
-     y  -> y-coordinate of the pixel to restore
-
-   Input:
-     pixel location
-
-   Output:
-     none
-
-   Side effect:
-     redraws either a background pixel or a dot pixel
+   Priority:
+     1. if a dot covers this pixel, redraw BLACK
+     2. otherwise redraw original background from bg[][]
    ═══════════════════════════════════════════════════════════════════════ */
 void restore_pixel(int x, int y)
 {
-    int i, ddx, ddy;
+    int i, ddx, ddy;                              // loop variable and distance offsets from dot centres
 
-    /* Ignore invalid coordinates */
     if (x < 0 || x >= FB_WIDTH || y < 0 || y >= FB_HEIGHT) return;
+    // immediately stop if pixel is off-screen
 
-    /* Check whether this pixel belongs to any stored dot */
-    for (i = 0; i < num_dots; i++) {
-        ddx = x - dot_x[i];
-        ddy = y - dot_y[i];
+    for (i = 0; i < num_dots; i++) {             // check every stored dot one by one
+        ddx = x - dot_x[i];                      // horizontal distance from current dot centre
+        ddy = y - dot_y[i];                      // vertical distance from current dot centre
 
-        /* Inside the circle if distance^2 <= radius^2 */
         if (ddx * ddx + ddy * ddy <= DOT_R * DOT_R) {
-            plot_pixel(x, y, BLACK);
-            return;
+            // if this pixel lies inside that dot's circular area
+
+            plot_pixel(x, y, BLACK);             // redraw dot pixel in black
+            return;                              // stop because correct pixel has been restored
         }
     }
 
-    /* Otherwise restore the original background pixel */
-    plot_pixel(x, y, bg[y][x]);
+    plot_pixel(x, y, bg[y][x]);                  // if no dot covered it, restore original background pixel
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Arrow cursor shape
+   Arrow shape lookup tables
 
-   The cursor is stored row-by-row using two lookup arrays:
-     AX0[row] = first column to draw on that row
-     AX1[row] = last  column to draw on that row
+   Each row of the arrow is described by:
+     AX0[row] = first filled column
+     AX1[row] = last filled column
 
-   So for each row, we fill pixels from AX0[row] to AX1[row].
-
-   The cursor tip is anchored at (tx, ty).
+   So row by row, the code fills a narrow triangle / arrow shape.
    ═══════════════════════════════════════════════════════════════════════ */
 static const unsigned char AX0[16] = {0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3};
+// leftmost filled column for each row of the arrow
+
 static const unsigned char AX1[16] = {0,1,2,3,4,5,6,7,8,9,10,6,6,6,6,6};
+// rightmost filled column for each row of the arrow
 
 /* ═══════════════════════════════════════════════════════════════════════
    draw_arrow
 
-   Draws the mouse cursor as a black arrow.
+   Draws the mouse cursor at position (tx, ty).
 
-   Parameters:
-     tx -> x-coordinate of the arrow tip
-     ty -> y-coordinate of the arrow tip
-
-   Input:
-     cursor position
-
-   Output:
-     none
-
-   Side effect:
-     writes cursor pixels onto the screen
+   Interpretation:
+   (tx, ty) is the top-left anchor / tip position used for the glyph.
    ═══════════════════════════════════════════════════════════════════════ */
 void draw_arrow(int tx, int ty)
 {
-    int row, col;
+    int row, col;                                 // row and column indices for the arrow glyph
 
-    for (row = 0; row < ARROW_H; row++)
+    for (row = 0; row < ARROW_H; row++)          // go through every row of the arrow
         for (col = AX0[row]; col <= AX1[row]; col++)
+            // for this row, fill only the columns that belong to the shape
             plot_pixel(tx + col, ty + row, BLACK);
+            // draw each arrow pixel in black relative to the cursor origin
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    erase_arrow
 
-   Removes the arrow cursor by restoring every pixel that the cursor
-   previously covered.
+   Erases the cursor by restoring every pixel the arrow used to cover.
 
-   It does not just paint over the cursor. Instead, it calls restore_pixel()
-   so the screen underneath is reconstructed correctly.
-
-   Parameters:
-     tx -> x-coordinate of the arrow tip
-     ty -> y-coordinate of the arrow tip
-
-   Input:
-     old cursor position
-
-   Output:
-     none
-
-   Side effect:
-     restores background and/or dot pixels under the old cursor
+   Important:
+   This does not just paint white.
+   It correctly restores dots or background underneath.
    ═══════════════════════════════════════════════════════════════════════ */
 void erase_arrow(int tx, int ty)
 {
-    int row, col;
+    int row, col;                                 // row and column indices for the arrow glyph
 
-    for (row = 0; row < ARROW_H; row++)
+    for (row = 0; row < ARROW_H; row++)          // scan each row of the cursor
         for (col = AX0[row]; col <= AX1[row]; col++)
+            // scan all filled columns in that row
             restore_pixel(tx + col, ty + row);
+            // restore what originally belonged under that cursor pixel
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    draw_dot
 
-   Draws a filled black circle centred at (cx, cy).
+   Draws a filled circular dot centred at (cx, cy).
 
-   The circle is made by scanning a square around the centre and drawing
-   only the pixels that satisfy:
+   Method:
+   Loop over a square around the centre and only draw points that satisfy
+   the circle equation:
        dx^2 + dy^2 <= r^2
-
-   Parameters:
-     cx -> x-coordinate of the dot centre
-     cy -> y-coordinate of the dot centre
-
-   Input:
-     centre location of the dot
-
-   Output:
-     none
-
-   Side effect:
-     draws directly onto the screen
    ═══════════════════════════════════════════════════════════════════════ */
 void draw_dot(int cx, int cy)
 {
-    int dx, dy;
+    int dx, dy;                                   // offsets from the dot centre
 
-    for (dy = -DOT_R; dy <= DOT_R; dy++)
-        for (dx = -DOT_R; dx <= DOT_R; dx++)
+    for (dy = -DOT_R; dy <= DOT_R; dy++)         // scan from top of circle's bounding box to bottom
+        for (dx = -DOT_R; dx <= DOT_R; dx++)     // scan from left of bounding box to right
             if (dx * dx + dy * dy <= DOT_R * DOT_R)
+                // only draw pixels lying inside the circle radius
                 plot_pixel(cx + dx, cy + dy, BLACK);
+                // draw that circle pixel in black
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    ps2_read_byte
 
-   Tries to read one byte from the PS/2 port.
+   Reads one byte from the PS/2 port if valid data is available.
 
-   If data is available, returns the low 8 bits.
-   If no data is available, returns -1.
+   Returns:
+     0..255  if a byte is ready
+     -1      if no byte is available right now
 
-   Parameters:
-     ps2 -> pointer to the PS/2 data register
-
-   Input:
-     memory-mapped PS/2 register pointer
-
-   Output:
-     byte value in range 0..255, or -1 if no valid data
-
-   Why static?
-     This helper is only used inside this file, so it does not need
-     external linkage.
+   This makes polling easy in the main loop.
    ═══════════════════════════════════════════════════════════════════════ */
 static int ps2_read_byte(volatile int *ps2)
 {
-    int v = *ps2;
+    int v = *ps2;                                 // read current PS/2 register contents
 
-    if (v & PS2_RVALID) return v & 0xFF;
-    return -1;
+    if (v & PS2_RVALID) return v & 0xFF;         // if valid-data bit is set, return just the low 8-bit data byte
+    return -1;                                    // otherwise signal that no byte is ready
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    ps2_send_byte
 
-   Sends one command byte to the PS/2 device and waits for the standard
-   ACK response 0xFA.
+   Sends one command byte to the PS/2 device and waits for ACK (0xFA).
 
-   Before sending:
-     the receive FIFO is flushed so that an old leftover byte is not
-     mistaken for the new ACK.
+   Used during mouse initialization.
 
-   Parameters:
-     ps2 -> pointer to the PS/2 data register
-     b   -> command byte to send
-
-   Input:
-     PS/2 register pointer and one command byte
-
-   Output:
-     none
-
-   Side effect:
-     writes to the PS/2 device and waits for acknowledgement
-
-   Note:
-     This uses a timeout so the program does not get stuck forever if
-     the device fails to respond.
+   Why flush first:
+   old leftover bytes in the FIFO could be mistaken for the ACK.
    ═══════════════════════════════════════════════════════════════════════ */
 static void ps2_send_byte(volatile int *ps2, unsigned char b)
 {
-    int timeout = 2000000;
+    int timeout = 2000000;                        // timeout counter so we do not wait forever if mouse does not answer
 
-    /* Clear any old bytes first */
     while (*ps2 & PS2_RVALID) (void)(*ps2);
+    // drain any old bytes already sitting in the receive FIFO
 
-    /* Write command byte */
     *ps2 = (int)b;
+    // write the command byte to the PS/2 port
 
-    /* Wait for ACK = 0xFA */
-    while (timeout-- > 0) {
-        int v = *ps2;
+    while (timeout-- > 0) {                      // keep checking until timeout expires
+        int v = *ps2;                            // read current PS/2 register value
         if ((v & PS2_RVALID) && (v & 0xFF) == 0xFA) break;
+        // if a valid byte arrived and it equals ACK 0xFA, stop waiting
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    mouse_init
 
-   Initializes the PS/2 mouse.
+   Fully initializes the PS/2 mouse before main loop starts.
 
-   Sequence used here:
-     1. flush any old bytes from the FIFO
+   Steps:
+     1. flush old bytes
      2. send reset command 0xFF
-     3. wait for BAT success code 0xAA
+     3. wait for BAT success 0xAA
      4. wait for device ID 0x00
      5. flush again
-     6. enable streaming with command 0xF4
+     6. enable streaming with 0xF4
 
-   This is called before drawing the background so that incoming mouse
-   data does not pile up in the FIFO while the program is busy.
-
-   Parameters:
-     none
-
-   Input:
-     none directly, but communicates with the PS/2 hardware
-
-   Output:
-     none
-
-   Side effect:
-     prepares the mouse to start sending movement packets
+   Called before drawing background so the FIFO does not overflow.
    ═══════════════════════════════════════════════════════════════════════ */
 void mouse_init(void)
 {
-    volatile int *ps2 = (volatile int *)PS2_BASE;
-    int i;
+    volatile int *ps2 = (volatile int *)PS2_BASE;    // pointer to memory-mapped PS/2 register
+    int i;                                            // loop variable for flushing
 
-    /* Hard flush: read repeatedly to clear anything already in the FIFO */
     for (i = 0; i < 256; i++) (void)(*ps2);
+    // perform a hard flush by reading many times in case FIFO already contains junk bytes
+
     while (*ps2 & PS2_RVALID) (void)(*ps2);
+    // continue draining until no valid bytes remain
 
-    /* Reset the mouse */
     ps2_send_byte(ps2, 0xFF);
+    // send reset command to the mouse
 
-    /* Wait for BAT complete (0xAA) followed by device ID (0x00) */
     {
         int got_aa = 0, timeout = 2000000;
+        // got_aa tracks whether BAT success byte 0xAA has appeared yet
 
-        while (timeout-- > 0) {
-            int v = *ps2;
-
-            if (v & PS2_RVALID) {
-                int b = v & 0xFF;
-
-                if (b == 0xAA) got_aa = 1;
-                if (got_aa && b == 0x00) break;
+        while (timeout-- > 0) {                  // wait for reset response sequence
+            int v = *ps2;                        // read PS/2 register
+            if (v & PS2_RVALID) {                // only use it if a byte is actually ready
+                int b = v & 0xFF;                // isolate the received 8-bit data byte
+                if (b == 0xAA) got_aa = 1;       // 0xAA means Basic Assurance Test passed
+                if (got_aa && b == 0x00) break;  // after BAT, device ID 0x00 confirms standard mouse
             }
         }
     }
 
-    /* Flush again before enabling packet streaming */
     while (*ps2 & PS2_RVALID) (void)(*ps2);
+    // flush any extra bytes before enabling packet streaming
 
-    /* Enable data reporting */
     ps2_send_byte(ps2, 0xF4);
+    // command 0xF4 tells the mouse to start streaming movement packets
 
-    /* Drain any remaining ACK byte */
     while (*ps2 & PS2_RVALID) (void)(*ps2);
+    // drain the ACK so the main loop starts with clean packet data
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    main
 
-   High-level program flow:
-     1. initialize VGA frame buffer
-     2. initialize PS/2 mouse
-     3. build and draw the static background
-     4. place the cursor in the middle of the screen
-     5. continuously read 3-byte mouse packets
-     6. move the cursor based on mouse deltas
-     7. on a left-click rising edge, place a black dot
-
-   Mouse packet format:
-     byte 0 -> flags / buttons / sign bits / overflow bits
-     byte 1 -> X movement delta
-     byte 2 -> Y movement delta
-
-   Parameters:
-     none
-
-   Input:
-     live PS/2 mouse packet stream
-
-   Output:
-     returns 0 in principle, although this program is intended to run forever
-
-   Side effects:
-     updates the VGA display continuously in real time
+   Overall job:
+     - set up VGA buffer
+     - initialize mouse
+     - draw static background
+     - show cursor
+     - read 3-byte PS/2 mouse packets forever
+     - move cursor based on packet deltas
+     - place black dots on left-click rising edge
    ═══════════════════════════════════════════════════════════════════════ */
 int main(void)
 {
     volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
+    // pointer to VGA pixel buffer controller registers
+
     volatile int *ps2        = (volatile int *)PS2_BASE;
+    // pointer to PS/2 data register used for reading live mouse bytes
 
-    /* Single-buffer setup:
-       read current front buffer address and set back buffer to same address */
     pixel_buffer_start = *pixel_ctrl;
+    // read the current front-buffer base address from the controller
+
     *(pixel_ctrl + 1)  = pixel_buffer_start;
+    // set the back buffer to the same address so this program uses single buffering
 
-    /* Initialize mouse first so incoming data does not overflow the FIFO
-       while the background is being generated */
     mouse_init();
+    // initialize PS/2 mouse first so incoming mouse bytes are handled correctly before long background draw
 
-    /* Build background lookup table and draw it once to the frame buffer */
     build_and_draw_background();
+    // create the white music-sheet background, draw staves/clefs, and initialize bg[][]
 
-    /* Start cursor near the centre of the visible screen */
     int cx = FB_WIDTH  / 2;
+    // start cursor x-position at horizontal centre of visible screen
+
     int cy = FB_HEIGHT / 2;
+    // start cursor y-position at vertical centre of visible screen
 
-    /* Clamp limits so the full arrow stays visible */
     int cx_max = FB_WIDTH  - ARROW_W;
+    // maximum legal x so the whole arrow still fits on-screen
+
     int cy_max = FB_HEIGHT - ARROW_H;
+    // maximum legal y so the whole arrow still fits on-screen
 
-    /* Sub-pixel accumulators
-       These preserve fractional motion when dividing mouse speed */
     int ax = 0, ay = 0;
+    // accumulators store leftover sub-pixel motion after dividing speed
 
-    /* Packet assembly state for the 3-byte PS/2 mouse packet */
     int byte_idx = 0;
+    // tells us which byte of the 3-byte mouse packet we are currently collecting
+
     unsigned char pkt[3];
+    // stores one full PS/2 mouse packet: flags, dx, dy
 
-    /* Used to detect a rising edge on the left mouse button */
     int prev_left = 0;
+    // remembers previous left-button state so we can detect a click edge
 
-    /* Draw initial cursor */
     draw_arrow(cx, cy);
+    // draw the initial cursor at the centre of the screen
 
-    /* Main polling loop */
     while (1)
     {
         int raw = ps2_read_byte(ps2);
-        if (raw < 0) continue;   /* no new byte yet */
+        // try to read one new byte from the PS/2 port
+
+        if (raw < 0) continue;
+        // if no byte is ready yet, skip this iteration and keep polling
 
         unsigned char b = (unsigned char)raw;
+        // cast returned value into an 8-bit unsigned byte for packet handling
 
-        /* Packet synchronization:
-           the first byte of a PS/2 mouse packet always has bit 3 = 1.
-           If we are expecting byte 0 and bit 3 is not set, then this byte
-           is probably leftover garbage or a misaligned delta byte, so skip it. */
         if (byte_idx == 0 && !(b & 0x08)) continue;
+        // packet synchronization:
+        // the first byte of a valid PS/2 mouse packet must have bit 3 = 1
+        // if not, this byte is probably stale/misaligned data, so discard it
 
-        /* Store the byte into the packet buffer */
         pkt[byte_idx++] = b;
+        // store current byte into packet buffer, then move to next packet position
 
-        /* Wait until all 3 bytes have arrived */
         if (byte_idx < 3) continue;
+        // if we do not yet have all 3 bytes, keep collecting
+
         byte_idx = 0;
+        // once 3 bytes are collected, reset index so next packet starts from byte 0
 
-        /* Decode one full mouse packet */
         unsigned char flags = pkt[0];
+        // first byte contains buttons, sign bits, and overflow bits
+
         int dx = (int)pkt[1];
+        // second byte is X movement delta, initially as unsigned 8-bit data
+
         int dy = (int)pkt[2];
+        // third byte is Y movement delta, initially as unsigned 8-bit data
 
-        /* Sign-extend 8-bit movement values into full int values */
         if (flags & 0x10) dx |= 0xFFFFFF00;
-        if (flags & 0x20) dy |= 0xFFFFFF00;
+        // if X sign bit is set, sign-extend dx so negative movement is represented properly as int
 
-        /* Ignore overflow packets
-           If movement overflowed, the deltas are unreliable */
+        if (flags & 0x20) dy |= 0xFFFFFF00;
+        // if Y sign bit is set, sign-extend dy so negative movement is represented properly as int
+
         if (flags & 0xC0) {
+            // bits 6 and 7 are overflow bits; if either is set, movement data is unreliable
+
             prev_left = (flags & 0x01);
+            // still update left-button history so click state stays consistent
+
             continue;
+            // ignore this packet and move on to the next one
         }
 
-        /* Apply speed scaling using accumulators
-           This slows the cursor down without losing fine movement */
         ax += dx;
+        // accumulate raw X motion before speed scaling
+
         ay += dy;
+        // accumulate raw Y motion before speed scaling
 
         int mx = ax / SPEED_DIV;
+        // convert accumulated X motion into slowed integer screen movement
+
         int my = ay / SPEED_DIV;
+        // convert accumulated Y motion into slowed integer screen movement
 
         ax -= mx * SPEED_DIV;
+        // keep the leftover X remainder so small motions are not lost
+
         ay -= my * SPEED_DIV;
+        // keep the leftover Y remainder so small motions are not lost
 
-        /* Remove old cursor first */
         erase_arrow(cx, cy);
+        // remove old cursor by restoring background/dots underneath it
 
-        /* Update cursor position
-           PS/2 Y is positive upward, but screen Y increases downward,
-           so Y movement must be inverted */
         cx += mx;
+        // move cursor horizontally by processed X movement
+
         cy -= my;
+        // subtract Y movement because PS/2 mouse positive Y is upward, but screen positive Y is downward
 
-        /* Clamp to visible screen bounds */
-        if (cx < 0)      cx = 0;
-        if (cx > cx_max) cx = cx_max;
-        if (cy < 0)      cy = 0;
-        if (cy > cy_max) cy = cy_max;
+        if (cx < 0)       cx = 0;
+        // clamp cursor to left edge
 
-        /* Detect left-click rising edge:
-           place one dot only when button changes from not-pressed to pressed */
+        if (cx > cx_max)  cx = cx_max;
+        // clamp cursor so arrow does not go off right edge
+
+        if (cy < 0)       cy = 0;
+        // clamp cursor to top edge
+
+        if (cy > cy_max)  cy = cy_max;
+        // clamp cursor so arrow does not go off bottom edge
+
         int left_now = (flags & 0x01) ? 1 : 0;
+        // extract current left-button state from bit 0 of flags
 
         if (left_now && !prev_left) {
+            // true only on rising edge: button is pressed now but was not pressed before
+
             if (num_dots < MAX_DOTS) {
+                // only store new dot if arrays still have room
+
                 dot_x[num_dots] = cx;
+                // record x-position of the newly placed dot
+
                 dot_y[num_dots] = cy;
+                // record y-position of the newly placed dot
+
                 num_dots++;
+                // increase total dot count so future restore checks include this dot
             }
+
             draw_dot(cx, cy);
+            // immediately draw the new dot at the cursor position
         }
 
         prev_left = left_now;
+        // save current button state for next loop iteration
 
-        /* Draw cursor at its new location */
         draw_arrow(cx, cy);
+        // draw cursor at its updated screen position
 
-        /* Refresh frame buffer pointer
-           In this program the front and back are the same buffer, but keeping
-           this updated ensures drawing always targets the active buffer base */
         pixel_buffer_start = *pixel_ctrl;
+        // refresh active buffer base address, even though in single-buffer mode it should stay the same
     }
 
     return 0;
+    // program is intended to run forever, so this line is never realistically reached
 }
