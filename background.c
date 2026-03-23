@@ -26,8 +26,7 @@ extern int pixel_buffer_start;
 #define PS2_BASE    0xFF200100
 #define PS2_RVALID  0x8000
 
-/* Top y-coordinate for each musical staff */
-static const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
+const int staff_top[NUM_STAVES] = { 60, 100, 140, 180 };
 
 /* ═══════════════════════════════════════════════════════════════════════
    bg_plot
