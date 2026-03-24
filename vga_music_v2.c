@@ -426,29 +426,39 @@ static void fill_note_heads(Note *n, int col, int staff, int slot,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   col_is_occupied
+   Returns 1 if column `col` on (staff, slot) is already claimed by any
+   head of any existing note.  Used to block overlapping placements.
+   ═══════════════════════════════════════════════════════════════════════ */
+static int col_is_occupied(int col, int staff, int slot)
+{
+    int i, h;
+    for (i = 0; i < num_notes; i++) {
+        if (notes[i].staff != staff || notes[i].pitch_slot != slot) continue;
+        for (h = 0; h < notes[i].num_heads; h++) {
+            if (notes[i].head_step[h] == col) return 1;
+        }
+    }
+    return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    place_note
+   Blocks placement if:
+     (a) the cursor column is already occupied by any head of any note, OR
+     (b) any of the new note's heads would land on an occupied column.
    ═══════════════════════════════════════════════════════════════════════ */
 static void place_note(int cur_col, int cur_staff, int cur_slot,
                        int cur_x, int cur_y, int nt)
 {
-    int i;
-    /* Check if a note already occupies this anchor cell */
-    for (i = 0; i < num_notes; i++) {
-        if (notes[i].step == cur_col &&
-            notes[i].staff == cur_staff &&
-            notes[i].pitch_slot == cur_slot) {
-            if (notes[i].note_type != nt) {
-                erase_note_glyph(notes[i].screen_x, notes[i].screen_y);
-                notes[i].note_type   = nt;
-                notes[i].duration_64 = note_duration_64[nt];
-                fill_note_heads(&notes[i], cur_col, cur_staff, cur_slot,
-                                cur_x, cur_y, nt);
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
-            }
-            return;
-        }
+    int h;
+    int nh = note_num_heads[nt];
+
+    /* Check every column the new glyph would occupy */
+    for (h = 0; h < nh; h++) {
+        if (col_is_occupied(cur_col + h, cur_staff, cur_slot)) return;
     }
+
     if (num_notes >= MAX_NOTES) return;
 
     notes[num_notes].step        = cur_col;
@@ -468,21 +478,26 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
 
 /* ═══════════════════════════════════════════════════════════════════════
    delete_note
+   Deletes whatever note owns the cursor column on this staff/slot.
+   Checks all heads so beamed notes can be deleted from any of their
+   occupied columns, not just the anchor.
    ═══════════════════════════════════════════════════════════════════════ */
 static void delete_note(int cur_col, int cur_staff, int cur_slot,
                         int cur_x, int cur_y)
 {
-    int i;
+    int i, h;
     for (i = 0; i < num_notes; i++) {
-        if (notes[i].step == cur_col &&
-            notes[i].staff == cur_staff &&
-            notes[i].pitch_slot == cur_slot) {
-            erase_note_glyph(notes[i].screen_x, notes[i].screen_y);
-            notes[i] = notes[num_notes - 1];
-            num_notes--;
-            redraw_all_notes();
-            draw_cursor_cell(cur_x, cur_y);
-            return;
+        if (notes[i].staff != cur_staff || notes[i].pitch_slot != cur_slot)
+            continue;
+        for (h = 0; h < notes[i].num_heads; h++) {
+            if (notes[i].head_step[h] == cur_col) {
+                erase_note_glyph(notes[i].screen_x, notes[i].screen_y);
+                notes[i] = notes[num_notes - 1];
+                num_notes--;
+                redraw_all_notes();
+                draw_cursor_cell(cur_x, cur_y);
+                return;
+            }
         }
     }
 }
