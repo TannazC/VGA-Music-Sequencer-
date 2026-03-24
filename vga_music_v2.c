@@ -211,9 +211,14 @@ static void erase_cursor_cell(int cx, int cy)
     int x, y;
     int x0 = cx - CELL_W/2, x1 = cx + CELL_W/2;
     int y0 = cy - CELL_H/2, y1 = cy + CELL_H/2;
+    /* Restore every pixel in the cell directly from bg[][] – no oval test.
+       Then redraw_all_notes() is called by the caller after moving so any
+       stem / beam / flag that passed through here gets repainted.          */
     for (y = y0; y <= y1; y++)
-        for (x = x0; x <= x1; x++)
-            restore_pixel(x, y);
+        for (x = x0; x <= x1; x++) {
+            if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
+                plot_pixel(x, y, bg[y][x]);
+        }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -387,9 +392,14 @@ static void erase_note_glyph(int cx, int cy)
     int x1 = cx + GLYPH_ERASE_W;
     int y0 = cy - GLYPH_ERASE_H;
     int y1 = cy + NOTE_RY + 2;
+    /* Write bg[][] directly – bypasses the oval-only protect logic.
+       redraw_all_notes() called by the caller repaints any surviving notes
+       whose pixels overlap this bounding box.                              */
     for (y = y0; y <= y1; y++)
-        for (x = x0; x <= x1; x++)
-            restore_pixel(x, y);
+        for (x = x0; x <= x1; x++) {
+            if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
+                plot_pixel(x, y, bg[y][x]);
+        }
 }
 
 static void redraw_all_notes(void)
@@ -453,6 +463,9 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
 {
     int h;
     int nh = note_num_heads[nt];
+
+    /* All heads must fit within the grid columns 0..TOTAL_COLS-1 */
+    if (cur_col < 0 || cur_col + nh - 1 >= TOTAL_COLS) return;
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
@@ -612,6 +625,8 @@ int main(void)
                 cur_row = new_row;
                 cur_x   = col_to_x(cur_col);
                 cur_y   = row_to_y(cur_row, &cur_staff, &cur_slot);
+                /* Repaint all notes so stems/beams under old cursor survive */
+                redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             }
         }
