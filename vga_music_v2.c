@@ -118,6 +118,14 @@ int snap_to_staff(int cy, int *staff_out, int *pitch_out)
     return staff_top[best_staff] + best_slot * (STAFF_SPACING / 2);
 }
 
+int snap_to_step(int cx)
+{
+    int step = (cx - STAFF_X0) / STEP_W;
+    if (step < 0)         step = 0;
+    if (step >= NUM_STEPS) step = NUM_STEPS - 1;
+    return STAFF_X0 + step * STEP_W + STEP_W / 2;  /* centre of cell */
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    NEW: draw_note_head  — filled black oval at (cx, cy)
    ═══════════════════════════════════════════════════════════════════════ */
@@ -293,23 +301,34 @@ int main(void)
         if (cy > cy_max)  cy = cy_max;
 
         int left_now  = (flags & 0x01) ? 1 : 0;
-        /* ── NEW: right button bit is bit 1 of flags byte ── */
         int right_now = (flags & 0x02) ? 1 : 0;
 
-        /* ── CHANGED: left click → snap to staff and place note oval ── */
+        /* ── Left click → snap and place note ── */
         if (left_now && !prev_left) {
             int staff_idx, pitch_slot;
+            int snapped_x = snap_to_step(cx);
             int snapped_y = snap_to_staff(cy, &staff_idx, &pitch_slot);
+
+            /* Only place if close enough to a staff */
             if (snapped_y >= 0 && num_notes < MAX_NOTES) {
-                /* Use cursor x as the note x position */
-                notes[num_notes].x = cx;
-                notes[num_notes].y = snapped_y;
-                num_notes++;
-                draw_note_head(cx, snapped_y);
+                /* Duplicate check */
+                int i, duplicate = 0;
+                for (i = 0; i < num_notes; i++) {
+                    if (notes[i].x == snapped_x && notes[i].y == snapped_y) {
+                        duplicate = 1;
+                        break;
+                    }
+                }
+                if (!duplicate) {
+                    notes[num_notes].x = snapped_x;
+                    notes[num_notes].y = snapped_y;
+                    num_notes++;
+                    draw_note_head(snapped_x, snapped_y);
+                }
             }
         }
 
-        /* ── NEW: right click → remove nearest note within oval range ── */
+        /* ── Right click → remove nearest note ── */
         if (right_now && !prev_right) {
             int i, best = -1, best_dist2 = (NOTE_RX * 3) * (NOTE_RX * 3);
             for (i = 0; i < num_notes; i++) {
@@ -322,13 +341,9 @@ int main(void)
                 }
             }
             if (best >= 0) {
-                /* Erase the oval from screen */
                 erase_note_head(notes[best].x, notes[best].y);
-                /* Remove from array by swapping with last */
                 notes[best] = notes[num_notes - 1];
                 num_notes--;
-                /* Redraw any remaining notes that may have been under cursor
-                   (rare, but keeps display consistent) */
                 int i2;
                 for (i2 = 0; i2 < num_notes; i2++)
                     draw_note_head(notes[i2].x, notes[i2].y);
@@ -339,7 +354,6 @@ int main(void)
         prev_right = right_now;
 
         draw_arrow(cx, cy);
-
         pixel_buffer_start = *pixel_ctrl;
     }
 
