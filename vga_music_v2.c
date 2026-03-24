@@ -144,7 +144,7 @@ int cur_note_type = NOTE_QUARTER;
    ═══════════════════════════════════════════════════════════════════════ */
 static int col_to_x(int col)
 {
-    if (col < 0)           col = 0;
+    if (col < 1)           col = 1;           /* col 0 reserved for treble clef */
     if (col >= TOTAL_COLS) col = TOTAL_COLS - 1;
     return STAFF_X0 + col * STEP_W + STEP_W / 2;
 }
@@ -464,8 +464,8 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     int h;
     int nh = note_num_heads[nt];
 
-    /* All heads must fit within the grid columns 0..TOTAL_COLS-1 */
-    if (cur_col < 0 || cur_col + nh - 1 >= TOTAL_COLS) return;
+    /* Col 0 is behind the treble clef; usable range is 1..TOTAL_COLS-1 */
+    if (cur_col < 1 || cur_col + nh - 1 >= TOTAL_COLS) return;
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
@@ -569,7 +569,7 @@ int main(void)
     keyboard_init();
     build_and_draw_background();
 
-    int cur_col   = 0;
+    int cur_col   = 1;   /* start at col 1 – col 0 is behind the treble clef */
     int cur_row   = 0;
     int cur_staff = 0;
     int cur_slot  = 0;
@@ -616,7 +616,7 @@ int main(void)
 
             if (b == KEY_W && cur_row > 0)              new_row--;
             if (b == KEY_S && cur_row < TOTAL_ROWS - 1) new_row++;
-            if (b == KEY_A && cur_col > 0)              new_col--;
+            if (b == KEY_A && cur_col > 1)              new_col--;  /* col 0 blocked */
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) new_col++;
 
             if (new_col != cur_col || new_row != cur_row) {
