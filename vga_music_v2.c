@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "background.h"
+#include "sequencer_audio.h"
 
 int pixel_buffer_start;
 
@@ -32,6 +33,7 @@ int pixel_buffer_start;
 
 #define KEY_SPACE  0x29
 #define KEY_DELETE 0x66
+#define KEY_Q      0x15   /* Q - start playback */
 #define KEY_BREAK  0xF0
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -133,6 +135,7 @@ typedef struct {
     int head_x[MAX_HEADS];   /* pixel x of each head centre */
     int head_y[MAX_HEADS];   /* pixel y of each head centre */
 } Note;
+#define NOTE_STRUCT_DEFINED   /* prevents redefinition in sequencer_audio.c */
 
 Note notes[MAX_NOTES];
 int  num_notes = 0;
@@ -144,7 +147,7 @@ int cur_note_type = NOTE_QUARTER;
    ═══════════════════════════════════════════════════════════════════════ */
 static int col_to_x(int col)
 {
-    if (col < 1)           col = 1;           /* col 0 reserved for treble clef */
+    if (col < 0)           col = 0;
     if (col >= TOTAL_COLS) col = TOTAL_COLS - 1;
     return STAFF_X0 + col * STEP_W + STEP_W / 2;
 }
@@ -464,8 +467,8 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     int h;
     int nh = note_num_heads[nt];
 
-    /* Col 0 is behind the treble clef; usable range is 1..TOTAL_COLS-1 */
-    if (cur_col < 1 || cur_col + nh - 1 >= TOTAL_COLS) return;
+    /* All heads must fit within the grid columns 0..TOTAL_COLS-1 */
+    if (cur_col < 0 || cur_col + nh - 1 >= TOTAL_COLS) return;
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
@@ -555,6 +558,9 @@ static void keyboard_init(void)
     ps2_flush(ps2);
 }
 
+/* Forward declaration for play_sequence defined in sequencer_audio.c */
+void play_sequence(void);
+
 /* ═══════════════════════════════════════════════════════════════════════
    Main
    ═══════════════════════════════════════════════════════════════════════ */
@@ -569,7 +575,7 @@ int main(void)
     keyboard_init();
     build_and_draw_background();
 
-    int cur_col   = 1;   /* start at col 1 – col 0 is behind the treble clef */
+    int cur_col   = 0;
     int cur_row   = 0;
     int cur_staff = 0;
     int cur_slot  = 0;
@@ -601,6 +607,14 @@ int main(void)
         if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; continue; }
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; continue; }
 
+        /* ── Q: play sequence ── */
+        if (b == KEY_Q) {
+            play_sequence();
+            /* Redraw everything cleanly after playback returns */
+            redraw_all_notes();
+            draw_cursor_cell(cur_x, cur_y);
+        }
+
         /* ── Space: place ── */
         if (b == KEY_SPACE)
             place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
@@ -616,7 +630,7 @@ int main(void)
 
             if (b == KEY_W && cur_row > 0)              new_row--;
             if (b == KEY_S && cur_row < TOTAL_ROWS - 1) new_row++;
-            if (b == KEY_A && cur_col > 1)              new_col--;  /* col 0 blocked */
+            if (b == KEY_A && cur_col > 0)              new_col--;
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) new_col++;
 
             if (new_col != cur_col || new_row != cur_row) {
