@@ -446,11 +446,11 @@ static void fill_note_heads(Note *n, int col, int staff, int slot,
    Returns 1 if column `col` on (staff, slot) is already claimed by any
    head of any existing note.  Used to block overlapping placements.
    ═══════════════════════════════════════════════════════════════════════ */
-static int col_is_occupied(int col, int staff, int slot)
+static int col_is_occupied(int col, int staff)
 {
     int i, h;
     for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != staff || notes[i].pitch_slot != slot) continue;
+        if (notes[i].staff != staff) continue;
         for (h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] == col) return 1;
         }
@@ -475,7 +475,7 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
-        if (col_is_occupied(cur_col + h, cur_staff, cur_slot)) return;
+        if (col_is_occupied(cur_col + h, cur_staff)) return;
     }
 
     if (num_notes >= MAX_NOTES) return;

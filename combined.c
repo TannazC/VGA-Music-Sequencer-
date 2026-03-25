@@ -745,28 +745,32 @@ void play_sequence(void)
 
 /* ── Filled oval: tilted ~20 deg CCW (quarter / eighth / 16th heads) ── */
 #define OVAL_W 11
-#define OVAL_H 7
+#define OVAL_H 9
 
-static const unsigned char FILLED_OVAL[7][11] = {
-    {0,0,0,0,0,1,1,1,0,0,0},
-    {0,0,0,1,1,1,1,1,1,1,0},
+static const unsigned char FILLED_OVAL[9][11] = {
+    {0,0,0,0,1,1,1,1,0,0,0},
+    {0,0,0,1,1,1,1,1,1,0,0},
     {0,0,1,1,1,1,1,1,1,1,0},
-    {0,0,1,1,1,1,1,1,1,1,0},
+    {0,1,1,1,1,1,1,1,1,1,0},
+    {0,1,1,1,1,1,1,1,1,1,0},
+    {0,1,1,1,1,1,1,1,1,1,0},
     {0,0,1,1,1,1,1,1,1,1,0},
     {0,0,0,1,1,1,1,1,1,0,0},
-    {0,0,0,0,1,1,1,0,0,0,0},
+    {0,0,0,0,1,1,1,1,0,0,0},
 };
 
 /* ── Open oval: upright (whole / half heads) ── */
 #define OPEN_OVAL_W 13
-#define OPEN_OVAL_H 7
+#define OPEN_OVAL_H 9
 
-static const unsigned char OPEN_OVAL[7][13] = {
+static const unsigned char OPEN_OVAL[9][13] = {
     {0,0,0,0,1,1,1,1,1,0,0,0,0},
     {0,0,0,1,1,1,1,1,1,1,0,0,0},
-    {0,0,1,1,1,0,0,0,1,1,1,0,0},
+    {0,0,1,1,1,1,0,1,1,1,1,0,0},
     {0,1,1,1,0,0,0,0,0,1,1,1,0},
-    {0,0,1,1,1,0,0,0,1,1,1,0,0},
+    {0,1,1,1,0,0,0,0,0,1,1,1,0},
+    {0,1,1,1,0,0,0,0,0,1,1,1,0},
+    {0,0,1,1,1,1,0,1,1,1,1,0,0},
     {0,0,0,1,1,1,1,1,1,1,0,0,0},
     {0,0,0,0,1,1,1,1,1,0,0,0,0},
 };
@@ -1227,11 +1231,11 @@ static void fill_note_heads(Note *n, int col, int staff, int slot,
    Returns 1 if column `col` on (staff, slot) is already claimed by any
    head of any existing note.  Used to block overlapping placements.
    ═══════════════════════════════════════════════════════════════════════ */
-static int col_is_occupied(int col, int staff, int slot)
+static int col_is_occupied(int col, int staff)
 {
     int i, h;
     for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != staff || notes[i].pitch_slot != slot) continue;
+        if (notes[i].staff != staff) continue;
         for (h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] == col) return 1;
         }
@@ -1256,7 +1260,7 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
-        if (col_is_occupied(cur_col + h, cur_staff, cur_slot)) return;
+        if (col_is_occupied(cur_col + h, cur_staff)) return;
     }
 
     if (num_notes >= MAX_NOTES) return;
