@@ -107,6 +107,7 @@ typedef struct {
     int num_heads;
     int head_step[MAX_HEADS];
     int head_pitch_slot[MAX_HEADS];
+    
     int screen_x;
     int screen_y;
     int head_x[MAX_HEADS];

@@ -117,7 +117,9 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
    The playback engine reads heads[i].step / heads[i].pitch_slot for
    every sub-beat tick.
    ═══════════════════════════════════════════════════════════════════════ */
-typedef struct {
+#ifndef NOTE_STRUCT_DEFINED
+#define NOTE_STRUCT_DEFINED
+   typedef struct {
     int step;         /* anchor column (first/only head)   */
     int staff;        /* 0 .. NUM_STAVES-1                 */
     int pitch_slot;   /* 0 (top) .. 8 (bottom) in staff    */
@@ -135,8 +137,7 @@ typedef struct {
     int head_x[MAX_HEADS];   /* pixel x of each head centre */
     int head_y[MAX_HEADS];   /* pixel y of each head centre */
 } Note;
-#define NOTE_STRUCT_DEFINED   /* prevents redefinition in sequencer_audio.c */
-
+#endif /* NOTE_STRUCT_DEFINED */   /* prevents redefinition in sequencer_audio.c */
 Note notes[MAX_NOTES];
 int  num_notes = 0;
 
@@ -262,7 +263,8 @@ static void stem_up(int ax, int ay, short int c)
    Single flag: diagonal stroke from stem tip curving right-downward.
    Two beams-wide stroke for visibility.
 */
-static void single_flag(int ax, int ay, short int c)
+//COmmented out since not used and flagged in cpulator
+/*static void single_flag(int ax, int ay, short int c)
 {
     int k;
     int sx = ax + STEM_X_OFF;
@@ -273,7 +275,7 @@ static void single_flag(int ax, int ay, short int c)
         plot_pixel(sx + k,     sy + k + 1, c);
     }
 }
-
+*/
 /*
    Double flag: two stacked diagonals (for 16th single note).
 */
