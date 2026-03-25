@@ -8,6 +8,7 @@ FILES_TO_COMBINE = [
     "background.c",
     "sequencer_audio.h",
     "sequencer_audio.c",
+    "sprites.h",
     "vga_music_v2.c"
 ]
 

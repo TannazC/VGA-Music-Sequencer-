@@ -738,11 +738,51 @@ void play_sequence(void)
    ========================================= */
 
 /* =========================================
+   Start of sprites.h
+   ========================================= */
+#ifndef SPRITES_H
+#define SPRITES_H
+
+/* ── Filled oval: tilted ~20 deg CCW (quarter / eighth / 16th heads) ── */
+#define OVAL_W 11
+#define OVAL_H 7
+
+static const unsigned char FILLED_OVAL[7][11] = {
+    {0,0,0,0,0,1,1,1,0,0,0},
+    {0,0,0,1,1,1,1,1,1,1,0},
+    {0,0,1,1,1,1,1,1,1,1,0},
+    {0,0,1,1,1,1,1,1,1,1,0},
+    {0,0,1,1,1,1,1,1,1,1,0},
+    {0,0,0,1,1,1,1,1,1,0,0},
+    {0,0,0,0,1,1,1,0,0,0,0},
+};
+
+/* ── Open oval: upright (whole / half heads) ── */
+#define OPEN_OVAL_W 13
+#define OPEN_OVAL_H 7
+
+static const unsigned char OPEN_OVAL[7][13] = {
+    {0,0,0,0,1,1,1,1,1,0,0,0,0},
+    {0,0,0,1,1,1,1,1,1,1,0,0,0},
+    {0,0,1,1,1,0,0,0,1,1,1,0,0},
+    {0,1,1,1,0,0,0,0,0,1,1,1,0},
+    {0,0,1,1,1,0,0,0,1,1,1,0,0},
+    {0,0,0,1,1,1,1,1,1,1,0,0,0},
+    {0,0,0,0,1,1,1,1,1,0,0,0,0},
+};
+
+#endif /* SPRITES_H */
+/* =========================================
+   End of sprites.h
+   ========================================= */
+
+/* =========================================
    Start of vga_music_v2.c
    ========================================= */
 #include <stdlib.h>
 // Skipped local include by merge script: #include "background.h"
 // Skipped local include by merge script: #include "sequencer_audio.h"
+// Skipped local include by merge script: #include "sprites.h"
 
 int pixel_buffer_start;
 
@@ -822,10 +862,8 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 #define WHITE         ((short int)0xFFFF)
 #define BLACK         ((short int)0x0000)
 
-#define NOTE_RX       4
-#define NOTE_RY       3
 
-#define STEM_X_OFF    NOTE_RX    /* stem at right edge of oval */
+#define STEM_X_OFF    (OVAL_W)/2    /* stem at right edge of oval */
 #define STEM_HEIGHT   11
 
 /* Beamed notes: heads are spaced exactly STEP_W apart (one grid column each) */
@@ -842,8 +880,8 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 #define CELL_H        (STAFF_SPACING / 2)
 
 /* Max glyph bounding box for erase (4 heads wide + stem + flag) */
-#define GLYPH_ERASE_W  (3 * STEP_W + NOTE_RX + FLAG_LEN + 2)
-#define GLYPH_ERASE_H  (STEM_HEIGHT + NOTE_RY + 4)
+#define GLYPH_ERASE_W  (3 * STEP_W + OVAL_W/2 + FLAG_LEN + 2)
+#define GLYPH_ERASE_H  (STEM_HEIGHT + OVAL_H/2 + 4)
 
 #define MAX_NOTES      256
 #define MAX_HEADS      4    /* maximum heads in one glyph */
@@ -932,8 +970,18 @@ void restore_pixel(int x, int y)
         for (h = 0; h < notes[i].num_heads; h++) {
             int ddx = x - notes[i].head_x[h];
             int ddy = y - notes[i].head_y[h];
-            int a = ddx * NOTE_RY, b = ddy * NOTE_RX, r = NOTE_RX * NOTE_RY;
-            if (a*a + b*b <= r*r) { plot_pixel(x, y, BLACK); return; }
+            int nt  = notes[i].note_type;
+            if (nt == NOTE_WHOLE || nt == NOTE_HALF) {
+                int bx = ddx + OPEN_OVAL_W/2;
+                int by = ddy + OPEN_OVAL_H/2;
+                if (bx >= 0 && bx < OPEN_OVAL_W && by >= 0 && by < OPEN_OVAL_H)
+                    if (OPEN_OVAL[by][bx]) { plot_pixel(x, y, BLACK); return; }
+            } else {
+                int bx = ddx + OVAL_W/2;
+                int by = ddy + OVAL_H/2;
+                if (bx >= 0 && bx < OVAL_W && by >= 0 && by < OVAL_H)
+                    if (FILLED_OVAL[by][bx]) { plot_pixel(x, y, BLACK); return; }
+            }
         }
     }
     plot_pixel(x, y, bg[y][x]);
@@ -974,23 +1022,19 @@ static void erase_cursor_cell(int cx, int cy)
 static void filled_oval(int ax, int ay, short int c)
 {
     int dx, dy;
-    for (dy = -NOTE_RY; dy <= NOTE_RY; dy++)
-        for (dx = -NOTE_RX; dx <= NOTE_RX; dx++) {
-            int a = dx*NOTE_RY, b = dy*NOTE_RX, r = NOTE_RX*NOTE_RY;
-            if (a*a + b*b <= r*r) plot_pixel(ax+dx, ay+dy, c);
-        }
+    for (dy = 0; dy < OVAL_H; dy++)
+        for (dx = 0; dx < OVAL_W; dx++)
+            if (FILLED_OVAL[dy][dx])
+                plot_pixel(ax + dx - OVAL_W/2, ay + dy - OVAL_H/2, c);
 }
 
 static void open_oval(int ax, int ay, short int c)
 {
     int dx, dy;
-    for (dy = -NOTE_RY; dy <= NOTE_RY; dy++)
-        for (dx = -NOTE_RX; dx <= NOTE_RX; dx++) {
-            int a  = dx*NOTE_RY,     b  = dy*NOTE_RX,     r  = NOTE_RX*NOTE_RY;
-            int ai = dx*(NOTE_RY-1), bi = dy*(NOTE_RX-1), ri = (NOTE_RX-1)*(NOTE_RY-1);
-            if (a*a + b*b <= r*r && !(ai*ai + bi*bi <= ri*ri))
-                plot_pixel(ax+dx, ay+dy, c);
-        }
+    for (dy = 0; dy < OPEN_OVAL_H; dy++)
+        for (dx = 0; dx < OPEN_OVAL_W; dx++)
+            if (OPEN_OVAL[dy][dx])
+                plot_pixel(ax + dx - OPEN_OVAL_W/2, ay + dy - OPEN_OVAL_H/2, c);
 }
 
 /* Stem at right edge of oval, going straight up */
@@ -1135,18 +1179,14 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
 static void erase_note_glyph(int cx, int cy)
 {
     int x, y;
-    int x0 = cx - NOTE_RX;
+    int x0 = cx - OVAL_W/2;
     int x1 = cx + GLYPH_ERASE_W;
     int y0 = cy - GLYPH_ERASE_H;
-    int y1 = cy + NOTE_RY + 2;
-    /* Write bg[][] directly – bypasses the oval-only protect logic.
-       redraw_all_notes() called by the caller repaints any surviving notes
-       whose pixels overlap this bounding box.                              */
+    int y1 = cy + OVAL_H/2 + 2;
     for (y = y0; y <= y1; y++)
-        for (x = x0; x <= x1; x++) {
+        for (x = x0; x <= x1; x++)
             if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
                 plot_pixel(x, y, bg[y][x]);
-        }
 }
 
 static void redraw_all_notes(void)
