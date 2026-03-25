@@ -70,8 +70,11 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 /* ═══════════════════════════════════════════════════════════════════════
    Grid layout
    ═══════════════════════════════════════════════════════════════════════ */
-#define SLOTS_PER_STAFF   ((LINES_PER_STAFF - 1) * 2 + 1)   /* 9  */
-#define TOTAL_ROWS        (NUM_STAVES * SLOTS_PER_STAFF)     /* 36 */
+/* SLOTS_PER_STAFF: 1 space above + 5 lines/4 spaces + 1 space below = 11   */
+/* slot 0 = space above top line, slot 1 = top line, ..., slot 9 = bottom     */
+/* line, slot 10 = space below bottom line.  row_to_y offsets by -1 slot.     */
+#define SLOTS_PER_STAFF   ((LINES_PER_STAFF - 1) * 2 + 3)   /* 11 */
+#define TOTAL_ROWS        (NUM_STAVES * SLOTS_PER_STAFF)     /* 44 */
 #define TOTAL_COLS        NUM_STEPS                          /* 16 */
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -161,7 +164,8 @@ static int row_to_y(int row, int *staff_out, int *slot_out)
     slot = row % SLOTS_PER_STAFF;
     if (staff_out) *staff_out = s;
     if (slot_out)  *slot_out  = slot;
-    return staff_top[s] + slot * (STAFF_SPACING / 2);
+    /* Slot 0 = space above the top staff line (1 slot = STAFF_SPACING/2 px above). */
+    return staff_top[s] + (slot - 1) * (STAFF_SPACING / 2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -471,7 +475,7 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     int nh = note_num_heads[nt];
 
     /* All heads must fit within the grid columns 0..TOTAL_COLS-1 */
-    if (cur_col < 0 || cur_col + nh - 1 >= TOTAL_COLS) return;
+    if (cur_col < 2 || cur_col + nh - 1 >= TOTAL_COLS) return;  /* cols 0-1 = treble clef */
 
     /* Check every column the new glyph would occupy */
     for (h = 0; h < nh; h++) {
@@ -574,11 +578,11 @@ int main(void)
 
     pixel_buffer_start = *pixel_ctrl;
     *(pixel_ctrl + 1)  = pixel_buffer_start;
-
+    
     keyboard_init();
     build_and_draw_background();
 
-    int cur_col   = 0;
+    int cur_col   = 2;   /* cols 0-1 overlap treble clef; start at 2 */
     int cur_row   = 0;
     int cur_staff = 0;
     int cur_slot  = 0;
@@ -633,7 +637,7 @@ int main(void)
 
             if (b == KEY_W && cur_row > 0)              new_row--;
             if (b == KEY_S && cur_row < TOTAL_ROWS - 1) new_row++;
-            if (b == KEY_A && cur_col > 0)              new_col--;
+            if (b == KEY_A && cur_col > 2)              new_col--;  /* col 0-1 blocked */
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) new_col++;
 
             if (new_col != cur_col || new_row != cur_row) {
