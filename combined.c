@@ -711,6 +711,7 @@ static const unsigned char ICON_RESTART[12][12] = {
     {0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
+
 /* =======================================================================
    Low-level pixel helpers
    ======================================================================= */
@@ -2031,8 +2032,10 @@ int main(void)
                         toolbar_set_note_type(cur_note_type); continue; }
         if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
             toolbar_set_note_type(cur_note_type); continue; }
-        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH;continue; }
-        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; continue; }
+        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH;continue; 
+                        toolbar_set_note_type(cur_note_type); }
+        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; continue;
+                        toolbar_set_note_type(cur_note_type); }
 
         /* Q: play sequence */
         if (b == KEY_Q) {
