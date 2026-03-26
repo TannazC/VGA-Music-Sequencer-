@@ -1,9 +1,9 @@
-=== vga_music_v2 — Run Instructions ===
+# vga_music_v2 — Run Instructions
 
 IMPORTANT: These steps must be followed EXACTLY each time.
 Do NOT skip the GDB_SERVER restart when switching programs.
 
-# FIRST TIME (or after switching from another program):
+## FIRST TIME (or after switching from another program):
 ------------------------------------------------------
 Tab 1:
   cd path\to\vga_music_v2
@@ -16,7 +16,7 @@ Tab 2 (new PowerShell):
   ./gmake
   ./gmake GDB_CLIENT
 
-# SWITCHING FROM ANOTHER PROGRAM:
+## SWITCHING FROM ANOTHER PROGRAM:
 --------------------------------
 1. Close the GDB_CLIENT tab (Ctrl+C or close window)
 2. Close the GDB_SERVER tab (Ctrl+C or close window)  <-- MUST DO THIS
