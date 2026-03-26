@@ -1,3 +1,5 @@
+#define TOOLBAR_IMPL
+#include "toolbar.h"
 #include <stdlib.h>
 #include "background.h"
 #include "sequencer_audio.h"
@@ -34,7 +36,10 @@ int pixel_buffer_start;
 
 #define KEY_SPACE  0x29
 #define KEY_DELETE 0x66
-#define KEY_Q      0x15   /* Q - start playback */
+#define KEY_Q      0x15 /* Q - start playback */
+#define KEY_E      0x24 /* E - pause/resume playback */
+#define KEY_T      0x2C /* T - stop playback, implement later */     
+#define KEY_R      0x2D /* R - restart playback, implement later */
 #define KEY_BREAK  0xF0
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -581,6 +586,7 @@ int main(void)
     
     keyboard_init();
     build_and_draw_background();
+    draw_toolbar(cur_note_type);
 
     int cur_col   = 2;   /* cols 0-1 overlap treble clef; start at 2 */
     int cur_row   = 0;
@@ -606,21 +612,38 @@ int main(void)
         if (got_break)      { got_break = 0; continue; }
 
         /* ── 1-7: select note type ── */
-        if (b == KEY_1) { cur_note_type = NOTE_WHOLE;      continue; }
-        if (b == KEY_2) { cur_note_type = NOTE_HALF;       continue; }
-        if (b == KEY_3) { cur_note_type = NOTE_QUARTER;    continue; }
-        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;  continue; }
-        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH; continue; }
-        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; continue; }
+        if (b == KEY_1){cur_note_type = NOTE_WHOLE;
+                        toolbar_set_note_type(cur_note_type); continue; }
+        if (b == KEY_2){cur_note_type = NOTE_HALF;
+                        toolbar_set_note_type(cur_note_type); continue; }
+        if (b == KEY_3){cur_note_type = NOTE_QUARTER;
+                        toolbar_set_note_type(cur_note_type); continue; }
+        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;
+                        toolbar_set_note_type(cur_note_type); continue; }
+        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
+            toolbar_set_note_type(cur_note_type); continue; }
+        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH;continue; }
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; continue; }
 
         /* ── Q: play sequence ── */
         if (b == KEY_Q) {
-            play_sequence();
-            /* Redraw everything cleanly after playback returns */
-            redraw_all_notes();
-            draw_cursor_cell(cur_x, cur_y);
-        }
+           toolbar_set_playback(TB_STATE_PLAYING);
+           play_sequence();                          // blocking until done
+           toolbar_set_playback(TB_STATE_STOPPED);
+           redraw_all_notes();
+           draw_cursor_cell(cur_x, cur_y);
+       }
+    // NOT IMPLEMENTED YET: just ignore these keys for now
+       if (b == KEY_E) { /* pause not yet implemented */ continue; }
+       if (b == KEY_T) { /* stop  not yet implemented */ continue; }
+       if (b == KEY_R) { /* restart — same as Q for now */
+           toolbar_set_playback(TB_STATE_PLAYING);
+           play_sequence();
+           toolbar_set_playback(TB_STATE_STOPPED);
+           redraw_all_notes();
+           draw_cursor_cell(cur_x, cur_y);
+           continue;
+       }
 
         /* ── Space: place ── */
         if (b == KEY_SPACE)

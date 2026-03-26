@@ -6,6 +6,8 @@ FILES_TO_COMBINE = [
     "treble_clef_bitmap.h",
     "background.h",
     "background.c",
+    "toolbar.h",
+    "toolbar.c",
     "sequencer_audio.h",
     "sequencer_audio.c",
     "sprites.h",
