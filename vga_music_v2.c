@@ -7,20 +7,20 @@
 
 int pixel_buffer_start;
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Hardware addresses
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 #define PIXEL_BUF_CTRL  0xFF203020
 #define PS2_BASE        0xFF200100
 #define PS2_RVALID      0x8000
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    PS/2 Set-2 scan codes
    W/A/S/D  = navigate
    1-7      = select note type  (1=whole .. 7=64th)
    Space    = place note
    Backspace= delete note
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 #define KEY_W      0x1D
 #define KEY_A      0x1C
 #define KEY_S      0x1B
@@ -43,20 +43,20 @@ int pixel_buffer_start;
 #define KEY_M  0x3A
 #define KEY_BREAK  0xF0
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Note types  (left-to-right matches the reference image)
-   ─────────────────────────────────────────────────────────────────────
+   *********************************************************************
    Duration in 1/64-note units.
    Beamed groups store each sub-beat in head_step[] / head_pitch_slot[]
    so the playback engine can iterate each individual beat precisely.
-   ═══════════════════════════════════════════════════════════════════════ */
-#define NOTE_WHOLE      0   /* open oval, no stem            – 64/64  1 head  */
-#define NOTE_HALF       1   /* open oval + stem              – 32/64  1 head  */
-#define NOTE_QUARTER    2   /* filled oval + stem            – 16/64  1 head  */
-#define NOTE_BEAM2_8TH  3   /* 2 beamed eighths (beam group) – 16/64  2 heads */
-#define NOTE_BEAM4_16TH 4   /* 4 beamed 16ths   (beam group) – 16/64  4 heads */
-#define NOTE_BEAM2_16TH 5   /* 2 beamed 16ths   (beam group) –  8/64  2 heads */
-#define NOTE_SINGLE16TH 6   /* single 16th flag              –  4/64  1 head  */
+   *********************************************************************** */
+#define NOTE_WHOLE      0   /* open oval, no stem            - 64/64  1 head  */
+#define NOTE_HALF       1   /* open oval + stem              - 32/64  1 head  */
+#define NOTE_QUARTER    2   /* filled oval + stem            - 16/64  1 head  */
+#define NOTE_BEAM2_8TH  3   /* 2 beamed eighths (beam group) - 16/64  2 heads */
+#define NOTE_BEAM4_16TH 4   /* 4 beamed 16ths   (beam group) - 16/64  4 heads */
+#define NOTE_BEAM2_16TH 5   /* 2 beamed 16ths   (beam group) -  8/64  2 heads */
+#define NOTE_SINGLE16TH 6   /* single 16th flag              -  4/64  1 head  */
 #define NUM_NOTE_TYPES  7
 
 /* Total duration of the whole glyph in 1/64-note units */
@@ -73,9 +73,9 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
     1, 1, 1, 2, 4, 2, 1
 };
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Grid layout
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 /* SLOTS_PER_STAFF: 1 space above + 5 lines/4 spaces + 1 space below = 11   */
 /* slot 0 = space above top line, slot 1 = top line, ..., slot 9 = bottom     */
 /* line, slot 10 = space below bottom line.  row_to_y offsets by -1 slot.     */
@@ -83,9 +83,9 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 #define TOTAL_ROWS        (NUM_STAVES * SLOTS_PER_STAFF)     /* 44 */
 #define TOTAL_COLS        NUM_STEPS                          /* 16 */
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Visual constants
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 #define CURSOR_COLOR  ((short int)0x051F)
 #define WHITE         ((short int)0xFFFF)
 #define BLACK         ((short int)0x0000)
@@ -114,17 +114,17 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 #define MAX_NOTES      256
 #define MAX_HEADS      4    /* maximum heads in one glyph */
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Note struct
-   ─────────────────────────────────────────────────────────────────────
-   anchor: the leftmost/only head — used as the glyph's reference point.
+   *********************************************************************
+   anchor: the leftmost/only head - used as the glyph's reference point.
    heads[]:  each individual beat position.
-     • For single notes: num_heads=1, heads[0] = anchor.
-     • For beamed groups: num_heads=N, heads[i] is at step+i, same
+     - For single notes: num_heads=1, heads[0] = anchor.
+     - For beamed groups: num_heads=N, heads[i] is at step+i, same
        pitch_slot (same horizontal row, consecutive columns).
    The playback engine reads heads[i].step / heads[i].pitch_slot for
    every sub-beat tick.
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 #ifndef NOTE_STRUCT_DEFINED
 #define NOTE_STRUCT_DEFINED
    typedef struct {
@@ -151,9 +151,9 @@ int  num_notes = 0;
 
 int cur_note_type = NOTE_QUARTER;
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Grid helpers
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static int col_to_x(int col)
 {
     if (col < 0)           col = 0;
@@ -174,9 +174,9 @@ static int row_to_y(int row, int *staff_out, int *slot_out)
     return staff_top[s] + (slot - 1) * (STAFF_SPACING / 2);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Pixel helpers
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 void plot_pixel(int x, int y, short int c)
 {
     if (x < 0 || x >= FB_WIDTH)  return;
@@ -216,9 +216,9 @@ void restore_pixel(int x, int y)
     plot_pixel(x, y, bg[y][x]);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Cursor cell
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void draw_cursor_cell(int cx, int cy)
 {
     int x, y;
@@ -234,7 +234,7 @@ static void erase_cursor_cell(int cx, int cy)
     int x, y;
     int x0 = cx - CELL_W/2, x1 = cx + CELL_W/2;
     int y0 = cy - CELL_H/2, y1 = cy + CELL_H/2;
-    /* Restore every pixel in the cell directly from bg[][] – no oval test.
+    /* Restore every pixel in the cell directly from bg[][] - no oval test.
        Then redraw_all_notes() is called by the caller after moving so any
        stem / beam / flag that passed through here gets repainted.          */
     for (y = y0; y <= y1; y++)
@@ -244,9 +244,9 @@ static void erase_cursor_cell(int cx, int cy)
         }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Note glyph primitives
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 
 static void filled_oval(int ax, int ay, short int c)
 {
@@ -325,11 +325,11 @@ static void beam_bar(int x0, int x1, int y_top, int thick, short int c)
             plot_pixel(x, y_top + t, c);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    draw_note_glyph
    Draws the complete visual glyph for note type `nt` anchored at (cx,cy).
    For beamed types, additional heads are at cx + i*STEP_W (i=1,2,3).
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void draw_note_glyph(int cx, int cy, int nt, short int c)
 {
     int i;
@@ -338,24 +338,24 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
 
     switch (nt) {
 
-    /* ── Whole: open oval, no stem ── */
+    /* ** Whole: open oval, no stem ** */
     case NOTE_WHOLE:
         open_oval(cx, cy, c);
         break;
 
-    /* ── Half: open oval + stem ── */
+    /* ** Half: open oval + stem ** */
     case NOTE_HALF:
         open_oval(cx, cy, c);
         stem_up(cx, cy, c);
         break;
 
-    /* ── Quarter: filled oval + stem ── */
+    /* ** Quarter: filled oval + stem ** */
     case NOTE_QUARTER:
         filled_oval(cx, cy, c);
         stem_up(cx, cy, c);
         break;
 
-    /* ── 2 beamed eighths: 2 heads + 2 stems + 1 beam bar ── */
+    /* ** 2 beamed eighths: 2 heads + 2 stems + 1 beam bar ** */
     case NOTE_BEAM2_8TH:
         for (i = 0; i < 2; i++) {
             filled_oval(cx + i * STEP_W, cy, c);
@@ -366,7 +366,7 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
                  stem_top_y, BEAM_THICK, c);
         break;
 
-    /* ── 4 beamed 16ths: 4 heads + 4 stems + 2 beam bars ── */
+    /* ** 4 beamed 16ths: 4 heads + 4 stems + 2 beam bars ** */
     case NOTE_BEAM4_16TH:
         for (i = 0; i < 4; i++) {
             filled_oval(cx + i * STEP_W, cy, c);
@@ -379,7 +379,7 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
                  stem_top_y + BEAM_THICK + 1, BEAM_THICK, c);
         break;
 
-    /* ── 2 beamed 16ths: 2 heads + 2 stems + 2 beam bars ── */
+    /* ** 2 beamed 16ths: 2 heads + 2 stems + 2 beam bars ** */
     case NOTE_BEAM2_16TH:
         for (i = 0; i < 2; i++) {
             filled_oval(cx + i * STEP_W, cy, c);
@@ -391,7 +391,7 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
                  stem_top_y + BEAM_THICK + 1, BEAM_THICK, c);
         break;
 
-    /* ── Single 16th: filled oval + stem + 2 flags ── */
+    /* ** Single 16th: filled oval + stem + 2 flags ** */
     case NOTE_SINGLE16TH:
         filled_oval(cx, cy, c);
         stem_up(cx, cy, c);
@@ -402,9 +402,9 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Erase: restore the full bounding box (covers all types conservatively)
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void erase_note_glyph(int cx, int cy)
 {
     int x, y;
@@ -426,12 +426,12 @@ static void redraw_all_notes(void)
                         notes[i].note_type, BLACK);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    fill_note_heads
    Populate the head_step[], head_pitch_slot[], head_x[], head_y[] arrays
    for a note of type `nt` placed at (col, staff, slot, screen_x, screen_y).
    Beamed notes occupy consecutive columns at the same pitch row.
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void fill_note_heads(Note *n, int col, int staff, int slot,
                              int sx, int sy, int nt)
 {
@@ -451,11 +451,11 @@ static void fill_note_heads(Note *n, int col, int staff, int slot,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    col_is_occupied
    Returns 1 if column `col` on (staff, slot) is already claimed by any
    head of any existing note.  Used to block overlapping placements.
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static int col_is_occupied(int col, int staff)
 {
     int i, h;
@@ -468,12 +468,12 @@ static int col_is_occupied(int col, int staff)
     return 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    place_note
    Blocks placement if:
      (a) the cursor column is already occupied by any head of any note, OR
      (b) any of the new note's heads would land on an occupied column.
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void place_note(int cur_col, int cur_staff, int cur_slot,
                        int cur_x, int cur_y, int nt)
 {
@@ -505,12 +505,12 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     draw_cursor_cell(cur_x, cur_y);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    delete_note
    Deletes whatever note owns the cursor column on this staff/slot.
    Checks all heads so beamed notes can be deleted from any of their
    occupied columns, not just the anchor.
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static void delete_note(int cur_col, int cur_staff, int cur_slot,
                         int cur_x, int cur_y)
 {
@@ -531,9 +531,9 @@ static void delete_note(int cur_col, int cur_staff, int cur_slot,
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    PS/2 helpers
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 static int ps2_read_byte(volatile int *ps2)
 {
     int v = *ps2;
@@ -605,9 +605,9 @@ void poll_playback_keys(void)
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ***********************************************************************
    Main
-   ═══════════════════════════════════════════════════════════════════════ */
+   *********************************************************************** */
 int main(void)
 {
     volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
@@ -646,7 +646,7 @@ int main(void)
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break)      { got_break = 0; continue; }
 
-        /* ── M: Toggle Options Menu ── */
+        /* ** M: Toggle Options Menu ** */
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
@@ -666,7 +666,7 @@ int main(void)
         /* Block all other keyboard inputs if the menu is open */
         if (menu_open) continue;
 
-        /* ── 1-7: select note type ── */
+        /* ** 1-7: select note type ** */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;
                         toolbar_set_note_type(cur_note_type); continue; }
         if (b == KEY_2){cur_note_type = NOTE_HALF;
@@ -710,15 +710,15 @@ int main(void)
             continue;
         }
 
-        /* ── Space: place ── */
+        /* ** Space: place ** */
         if (b == KEY_SPACE)
             place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
 
-        /* ── Backspace: delete ── */
+        /* ** Backspace: delete ** */
         if (b == KEY_DELETE)
             delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
 
-        /* ── W/A/S/D: navigate ── */
+        /* ** W/A/S/D: navigate ** */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             int new_col = cur_col;
             int new_row = cur_row;
