@@ -11,7 +11,7 @@
 #define NUM_STAVES      4
 #define LINES_PER_STAFF 5
 #define STAFF_SPACING   6
-#define STAFF_X0        20
+#define STAFF_X0        10
 #define STAFF_X1       (FB_WIDTH - 10)
 
 // snap_to_step parameters

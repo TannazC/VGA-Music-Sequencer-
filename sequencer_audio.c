@@ -133,6 +133,11 @@ extern int       pixel_buffer_start;
 extern short int bg[FB_HEIGHT][FB_WIDTH];
 #endif /* NOTE_STRUCT_DEFINED */
 
+//so that we can play,pause, and poll keys during playback without including toolbar.h here
+extern volatile int seq_is_playing;
+extern volatile int seq_is_paused;
+extern void poll_playback_keys(void);
+
 /* ═══════════════════════════════════════════════════════════════════════
    Pitch table — slot 0 (top line, F5) → slot 8 (bottom line, E4)
 
@@ -423,20 +428,80 @@ static void play_column(volatile audio_t *audiop, int col, int s)
 void play_sequence(void)
 {
     volatile audio_t *audiop = (volatile audio_t *)AUDIO_BASE;
+    volatile int *ps2 = (volatile int *)0xFF200100; /* PS2_BASE */
     int s, col;
+    
+    /* Playback state flags */
+    int is_playing;
+    int is_paused;
+    int got_break = 0;
+    int restart_seq;
 
-    /* Pulse the FIFO-clear bits, then de-assert immediately.
-       Without the second write the write FIFO stays in reset and every
-       sample is silently discarded — that was the primary original bug. */
-    audiop->control = 0x3;
-    audiop->control = 0x0;
+    /* Wrap the entire engine in a loop so R can trigger a reset */
+    do {
+        /* Reset all flags for a fresh start */
+        restart_seq = 0;
+        is_playing = 1;
+        is_paused = 0;
 
-    for (s = 0; s < NUM_STAVES; s++) {
-        for (col = FIRST_COL; col < TOTAL_COLS; col++) {
-            draw_playhead(col, s);
-            play_column(audiop, col, s);
-            erase_playhead();
+        /* Pulse the FIFO-clear bits to reset audio buffers */
+        audiop->control = 0x3;
+        audiop->control = 0x0;
+
+        for (s = 0; s < NUM_STAVES; s++) {
+            if (!is_playing || restart_seq) break; 
+
+            for (col = FIRST_COL; col < TOTAL_COLS; col++) {
+                if (!is_playing || restart_seq) break; 
+
+                /* =========================================
+                   1. Keyboard Polling (Play/Pause/Stop/Restart)
+                   ========================================= */
+                while (1) {
+                    int raw = *ps2;
+                    
+                    if (raw & 0x8000) { 
+                        unsigned char b = (unsigned char)(raw & 0xFF);
+
+                        if (b == 0xE0) continue;
+                        if (b == 0xF0) { got_break = 1; continue; } /* KEY_BREAK */
+                        if (got_break) { got_break = 0; continue; }
+
+                        /* Q Key (Play / Resume) */
+                        if (b == 0x15) { 
+                            is_paused = 0; 
+                        }
+                        /* E Key (Pause) */
+                        if (b == 0x24) { 
+                            is_paused = 1; 
+                        }
+                        /* T Key (Stop) */
+                        if (b == 0x2C) { 
+                            is_playing = 0;
+                            is_paused = 0; 
+                        }
+                        /* R Key (Restart) */
+                        if (b == 0x2D) {
+                            restart_seq = 1;
+                            is_paused = 0; /* Force break to restart */
+                        }
+                    }
+
+                    if (!is_paused) {
+                        break;
+                    }
+                }
+
+                /* Catch the stop or restart before playing the note */
+                if (!is_playing || restart_seq) break; 
+
+                /* =========================================
+                   2. Standard Audio & UI Execution
+                   ========================================= */
+                draw_playhead(col, s);
+                play_column(audiop, col, s);
+                erase_playhead();
+            }
         }
-    }
+    } while (restart_seq); /* If R was pressed, loop back to the top! */
 }
-

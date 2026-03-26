@@ -569,7 +569,38 @@ static void keyboard_init(void)
     }
     ps2_flush(ps2);
 }
+/* Global playback control flags for sequencer_audio.c to read */
+volatile int seq_is_playing = 0;
+volatile int seq_is_paused = 0;
 
+/* This allows play_sequence() to check for keys while it runs */
+void poll_playback_keys(void)
+{
+    volatile int *ps2 = (volatile int *)PS2_BASE;
+    static int got_break_local = 0; // Static to remember state across calls
+
+    while (1) {
+        int raw = ps2_read_byte(ps2);
+        if (raw < 0) break; // Buffer is empty, go back to playing music
+
+        unsigned char b = (unsigned char)raw;
+
+        if (b == 0xE0) continue;
+        if (b == KEY_BREAK) { got_break_local = 1; continue; }
+        if (got_break_local) { got_break_local = 0; continue; } // Ignore key release
+
+        /* Toggle pause state */
+        if (b == KEY_E) {
+            seq_is_paused = !seq_is_paused; 
+            // Optional: update toolbar to show paused state if you have one
+        }
+        
+        /* Signal the loop to break */
+        if (b == KEY_T) {
+            seq_is_playing = 0; 
+        }
+    }
+}
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
@@ -625,25 +656,33 @@ int main(void)
         if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH;continue; }
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; continue; }
 
-        /* ── Q: play sequence ── */
+        /* Q: play sequence */
         if (b == KEY_Q) {
-           toolbar_set_playback(TB_STATE_PLAYING);
-           play_sequence();                          // blocking until done
-           toolbar_set_playback(TB_STATE_STOPPED);
-           redraw_all_notes();
-           draw_cursor_cell(cur_x, cur_y);
-       }
-    // NOT IMPLEMENTED YET: just ignore these keys for now
-       if (b == KEY_E) { /* pause not yet implemented */ continue; }
-       if (b == KEY_T) { /* stop  not yet implemented */ continue; }
-       if (b == KEY_R) { /* restart — same as Q for now */
-           toolbar_set_playback(TB_STATE_PLAYING);
-           play_sequence();
-           toolbar_set_playback(TB_STATE_STOPPED);
-           redraw_all_notes();
-           draw_cursor_cell(cur_x, cur_y);
-           continue;
-       }
+            seq_is_playing = 1;
+            seq_is_paused = 0;
+            toolbar_set_playback(TB_STATE_PLAYING);
+            play_sequence(); // This will now check the globals internally
+            toolbar_set_playback(TB_STATE_STOPPED);
+            redraw_all_notes();
+            draw_cursor_cell(cur_x, cur_y);
+            continue;
+        }
+
+        /* E & T: Handled inside poll_playback_keys now */
+        if (b == KEY_E) { continue; } // Only does something if already playing
+        if (b == KEY_T) { continue; } // Only does something if already playing
+
+        /* R: restart playback */
+        if (b == KEY_R) {
+            seq_is_playing = 1;
+            seq_is_paused = 0;
+            toolbar_set_playback(TB_STATE_PLAYING);
+            play_sequence();
+            toolbar_set_playback(TB_STATE_STOPPED);
+            redraw_all_notes();
+            draw_cursor_cell(cur_x, cur_y);
+            continue;
+        }
 
         /* ── Space: place ── */
         if (b == KEY_SPACE)

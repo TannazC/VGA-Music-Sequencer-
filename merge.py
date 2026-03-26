@@ -5,12 +5,12 @@ import os
 FILES_TO_COMBINE = [
     "treble_clef_bitmap.h",
     "background.h",
-    "background.c",
     "toolbar.h",
-    "toolbar.c",
-    "sequencer_audio.h",
-    "sequencer_audio.c",
     "sprites.h",
+    "sequencer_audio.h",
+    "background.c",
+    "toolbar.c",
+    "sequencer_audio.c",
     "vga_music_v2.c"
 ]
 
