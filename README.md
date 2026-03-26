@@ -6,15 +6,15 @@ Do NOT skip the GDB_SERVER restart when switching programs.
 ## FIRST TIME (or after switching from another program):
 ------------------------------------------------------
 Tab 1:
-  cd path\to\vga_music_v2
-  ./gmake DE1-SoC
-  ./gmake DETECT_DEVICES
-  ./gmake GDB_SERVER        <-- LEAVE THIS TAB OPEN, DO NOT CLOSE
+1.  cd path\to\vga_music_v2
+2.  ./gmake DE1-SoC
+3.  ./gmake DETECT_DEVICES
+4.  ./gmake GDB_SERVER        <-- LEAVE THIS TAB OPEN, DO NOT CLOSE
 
 Tab 2 (new PowerShell):
-  cd path\to\vga_music_v2
-  ./gmake
-  ./gmake GDB_CLIENT
+1.  cd path\to\vga_music_v2
+2.  ./gmake
+3.  ./gmake GDB_CLIENT
 
 ## SWITCHING FROM ANOTHER PROGRAM:
 --------------------------------
