@@ -40,6 +40,7 @@ int pixel_buffer_start;
 #define KEY_E      0x24 /* E - pause/resume playback */
 #define KEY_T      0x2C /* T - stop playback, implement later */     
 #define KEY_R      0x2D /* R - restart playback, implement later */
+#define KEY_M  0x3A
 #define KEY_BREAK  0xF0
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -631,6 +632,9 @@ int main(void)
 
     int got_break = 0;
 
+    int menu_open = 0;
+    draw_bottom_tab();
+
     while (1)
     {
         int raw = ps2_read_byte(ps2);
@@ -641,6 +645,26 @@ int main(void)
         if (b == 0xE0)        continue;
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break)      { got_break = 0; continue; }
+
+        /* ── M: Toggle Options Menu ── */
+        if (b == KEY_M) {
+            if (menu_open) {
+                menu_open = 0;
+                /* Wipe the menu away by redrawing the background & notes */
+                build_and_draw_background();
+                draw_toolbar(cur_note_type);
+                draw_bottom_tab();
+                redraw_all_notes();
+                draw_cursor_cell(cur_x, cur_y);
+            } else {
+                menu_open = 1;
+                draw_options_menu();
+            }
+            continue;
+        }
+
+        /* Block all other keyboard inputs if the menu is open */
+        if (menu_open) continue;
 
         /* ── 1-7: select note type ── */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;

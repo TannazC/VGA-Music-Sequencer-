@@ -185,6 +185,12 @@ void toolbar_set_playback(int state);
    step: 0 .. 13  (column index relative to FIRST_COL = 2)            */
 void toolbar_update_step(int step);
 
+/* Draws the static [M] OPTIONS tab at the bottom of the screen */
+void draw_bottom_tab(void);
+
+/* Draws the static pop-up menu in the center of the screen */
+void draw_options_menu(void);
+
 #endif /* TOOLBAR_H */
 /* =========================================
    End of toolbar.h
@@ -635,6 +641,17 @@ static const unsigned char *get_glyph(unsigned char c)
     static const unsigned char G_R[7]={0x1E,0x11,0x11,0x1E,0x14,0x12,0x11};
     static const unsigned char G_S[7]={0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E};
     static const unsigned char G_T[7]={0x1F,0x04,0x04,0x04,0x04,0x04,0x04};
+    static const unsigned char G_G[7]={0x0E,0x11,0x10,0x17,0x11,0x11,0x0E};
+    static const unsigned char G_I[7]={0x0E,0x04,0x04,0x04,0x04,0x04,0x0E};
+    static const unsigned char G_M[7]={0x11,0x1B,0x15,0x11,0x11,0x11,0x11};
+    static const unsigned char G_N[7]={0x11,0x19,0x15,0x13,0x11,0x11,0x11};
+    static const unsigned char G_O[7]={0x0E,0x11,0x11,0x11,0x11,0x11,0x0E};
+    static const unsigned char G_U[7]={0x11,0x11,0x11,0x11,0x11,0x11,0x0E};
+    static const unsigned char G_H[7]={0x11,0x11,0x11,0x1F,0x11,0x11,0x11};
+    static const unsigned char G_W[7]={0x11,0x11,0x11,0x11,0x15,0x15,0x0A};
+    static const unsigned char G_DASH[7]={0x00,0x00,0x00,0x0E,0x00,0x00,0x00};
+    static const unsigned char G_LBRACKET[7]={0x0E,0x08,0x08,0x08,0x08,0x08,0x0E};
+    static const unsigned char G_RBRACKET[7]={0x0E,0x02,0x02,0x02,0x02,0x02,0x0E};
  
     switch(c){
         case '1': return G_1; case '2': return G_2; case '3': return G_3;
@@ -644,6 +661,10 @@ static const unsigned char *get_glyph(unsigned char c)
         case 'D': return G_D; case 'E': return G_E; case 'K': return G_K; 
         case 'L': return G_L; case 'P': return G_P; case 'Q': return G_Q; 
         case 'R': return G_R; case 'S': return G_S; case 'T': return G_T;
+        case 'G': return G_G; case 'I': return G_I; case 'M': return G_M;
+        case 'N': return G_N; case 'O': return G_O; case 'U': return G_U;
+        case '[': return G_LBRACKET; case ']': return G_RBRACKET;
+        case 'H': return G_H; case 'W': return G_W; case '-': return G_DASH;
         default:  return 0;
     }
 }
@@ -854,6 +875,56 @@ void toolbar_set_playback(int state)
     x = tb_transport_badge(x, ICON_PAUSE, 'E', fill, TB_PAUSE_ICO, TB_PAUSE_KEY) + BADGE_GAP;
     x = tb_transport_badge(x, ICON_STOP, 'T', TB_STOP_FILL, TB_STOP_ICO, TB_STOP_KEY) + BADGE_GAP;
     tb_transport_badge(x, ICON_RESTART, 'R', TB_REST_FILL, TB_REST_ICO, TB_REST_KEY);
+}
+/* =======================================================================
+   Menu and Overlay Logic
+   ======================================================================= */
+
+/* Helper to draw full words instead of single characters */
+void tb_draw_string(int x, int y, const char *str, short int col) {
+    const char *p;
+    int tx = x;
+    for(p = str; *p; p++, tx += 6) {
+        if (*p == ' ') continue; /* Skip drawing, just advance X coordinate */
+        tb_draw_char(tx, y, (unsigned char)*p, col);
+    }
+}
+
+/* Draws a small tab at the bottom right of the screen */
+void draw_bottom_tab(void) {
+    int w = 75;
+    int h = 14;
+    int x = FB_WIDTH - w - 10;
+    int y = FB_HEIGHT - h - 10;
+    
+    tb_fill(x, y, x+w, y+h, TB_BG);
+    tb_hline(x, x+w, y, TB_BORDER);
+    tb_vline(x, y, y+h, TB_BORDER);
+    tb_vline(x+w, y, y+h, TB_BORDER);
+    tb_hline(x, x+w, y+h, TB_BORDER);
+    
+    tb_draw_string(x + 5, y + 4, "[M] OPTIONS", TB_BORDER);
+}
+
+/* Draws a large pop-up menu in the center of the screen */
+void draw_options_menu(void) {
+    int x0 = 70, y0 = 50, x1 = 250, y1 = 190;
+    
+    /* Draw shadow/border and inner background */
+    tb_fill(x0, y0, x1, y1, TB_BORDER);
+    tb_fill(x0+2, y0+2, x1-2, y1-2, TB_BG);
+    
+    /* Menu Title */
+    tb_draw_string(x0 + 55, y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
+    tb_hline(x0+10, x1-10, y0 + 22, TB_DIV);
+    
+    /* Dummy Options */
+    tb_draw_string(x0 + 20, y0 + 40, "1 - TEMPO UP", TB_NOTE_TXT);
+    tb_draw_string(x0 + 20, y0 + 60, "2 - TEMPO DOWN", TB_NOTE_TXT);
+    tb_draw_string(x0 + 20, y0 + 80, "3 - CHANGE INSTRUMENT", TB_NOTE_TXT);
+    
+    /* Footer */
+    tb_draw_string(x0 + 45, y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 /* =========================================
    End of toolbar.c
@@ -1419,6 +1490,7 @@ int pixel_buffer_start;
 #define KEY_E      0x24 /* E - pause/resume playback */
 #define KEY_T      0x2C /* T - stop playback, implement later */     
 #define KEY_R      0x2D /* R - restart playback, implement later */
+#define KEY_M  0x3A
 #define KEY_BREAK  0xF0
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2010,6 +2082,9 @@ int main(void)
 
     int got_break = 0;
 
+    int menu_open = 0;
+    draw_bottom_tab();
+
     while (1)
     {
         int raw = ps2_read_byte(ps2);
@@ -2020,6 +2095,26 @@ int main(void)
         if (b == 0xE0)        continue;
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break)      { got_break = 0; continue; }
+
+        /* ── M: Toggle Options Menu ── */
+        if (b == KEY_M) {
+            if (menu_open) {
+                menu_open = 0;
+                /* Wipe the menu away by redrawing the background & notes */
+                build_and_draw_background();
+                draw_toolbar(cur_note_type);
+                draw_bottom_tab();
+                redraw_all_notes();
+                draw_cursor_cell(cur_x, cur_y);
+            } else {
+                menu_open = 1;
+                draw_options_menu();
+            }
+            continue;
+        }
+
+        /* Block all other keyboard inputs if the menu is open */
+        if (menu_open) continue;
 
         /* ── 1-7: select note type ── */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;

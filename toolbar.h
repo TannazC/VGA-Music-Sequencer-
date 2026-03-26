@@ -80,4 +80,10 @@ void toolbar_set_playback(int state);
    step: 0 .. 13  (column index relative to FIRST_COL = 2)            */
 void toolbar_update_step(int step);
 
+/* Draws the static [M] OPTIONS tab at the bottom of the screen */
+void draw_bottom_tab(void);
+
+/* Draws the static pop-up menu in the center of the screen */
+void draw_options_menu(void);
+
 #endif /* TOOLBAR_H */
