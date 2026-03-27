@@ -950,16 +950,15 @@ static void update_note_indicator(int nt, int accidental) {
 
     /* Clear the entire current-note UI strip before redrawing it. */
     for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 0; x < 220; x++) {
+        for (x = 0; x < FB_WIDTH; x++) {
             plot_pixel(x, y, bg[y][x]);
         }
     }
 
-    tb_draw_string(10, 216, "CURRENT NOTE", BLACK);
-    tb_draw_string(10, 232, accidental_label(accidental), BLACK);
-
-    /* Draw the preview glyph with the currently selected accidental. */
-    draw_note_glyph(132, 232, nt, accidental, BLACK);
+    /* "CURRENT NOTE: " label then glyph (with accidental) on same line */
+    tb_draw_string(10, 222, "CURRENT NOTE:", BLACK);
+    /* Glyph sits right after the label: 14 chars * 6px + 10 offset + 8 gap */
+    draw_note_glyph(108, 226, nt, accidental, BLACK);
 }
 
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
