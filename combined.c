@@ -2026,7 +2026,8 @@ static void draw_note_instance(const Note *n, short int c)
 
     if (n->num_heads <= 0) return;
 
-    draw_accidental_symbol(n->head_x[0], n->head_y[0], n->accidental, c);
+    if (n->note_type != NOTE_REST)
+        draw_accidental_symbol(n->head_x[0], n->head_y[0], n->accidental, c);
 
     switch (n->note_type) {
     case NOTE_WHOLE:
@@ -2222,7 +2223,7 @@ static void draw_note_glyph(int cx, int cy, int nt, int accidental, short int c)
     preview.pitch_slot = 0;
     preview.note_type = nt;
     preview.duration_64 = note_duration_64[nt];
-    preview.accidental = accidental;
+    preview.accidental = (nt == NOTE_REST) ? ACC_NONE : accidental;
     preview.num_heads = note_num_heads[nt];
     preview.screen_x = cx;
     preview.screen_y = cy;
@@ -2402,14 +2403,14 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     notes[num_notes].pitch_slot  = cur_slot;
     notes[num_notes].note_type   = nt;
     notes[num_notes].duration_64 = note_duration_64[nt];
-    notes[num_notes].accidental  = cur_accidental;
+    notes[num_notes].accidental  = (nt == NOTE_REST) ? ACC_NONE : cur_accidental;
     notes[num_notes].screen_x    = cur_x;
     notes[num_notes].screen_y    = cur_y;
     fill_note_heads(&notes[num_notes], cur_col, cur_staff, cur_slot,
                     cur_x, cur_y, nt);
     num_notes++;
 
-    draw_note_glyph(cur_x, cur_y, nt, cur_accidental, BLACK);
+    draw_note_glyph(cur_x, cur_y, nt, (nt == NOTE_REST) ? ACC_NONE : cur_accidental, BLACK);
     draw_cursor_cell(cur_x, cur_y);
 }
 
@@ -2536,7 +2537,7 @@ static void update_note_indicator(int nt, int accidental) {
     /* "CURRENT NOTE: " label then glyph (with accidental) on same line */
     tb_draw_string(10, 222, "CURRENT NOTE:", BLACK);
     /* Glyph sits right after the label: 14 chars * 6px + 10 offset + 8 gap */
-    draw_note_glyph(108, 226, nt, accidental, BLACK);
+    draw_note_glyph(108, 226, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
 }
 
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
@@ -2631,6 +2632,7 @@ int main(void)
                         toolbar_set_note_type(cur_note_type);
                         update_note_indicator(cur_note_type, cur_accidental); continue;}
         if (b == KEY_8) { cur_note_type = NOTE_REST;
+                        cur_accidental = ACC_NONE;
                         toolbar_set_note_type(cur_note_type);
                         update_note_indicator(cur_note_type, cur_accidental); continue;}
 
@@ -2669,17 +2671,20 @@ int main(void)
             continue;
         }
         if (b == KEY_X) {
-            cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
+            if (cur_note_type != NOTE_REST)
+                cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
             update_note_indicator(cur_note_type, cur_accidental);
             continue;
         }
         if (b == KEY_C) {
-            cur_accidental = (cur_accidental == ACC_FLAT) ? ACC_NONE : ACC_FLAT;
+            if (cur_note_type != NOTE_REST)
+                cur_accidental = (cur_accidental == ACC_FLAT) ? ACC_NONE : ACC_FLAT;
             update_note_indicator(cur_note_type, cur_accidental);
             continue;
         }
         if (b == KEY_V) {
-            cur_accidental = (cur_accidental == ACC_NATURAL) ? ACC_NONE : ACC_NATURAL;
+            if (cur_note_type != NOTE_REST)
+                cur_accidental = (cur_accidental == ACC_NATURAL) ? ACC_NONE : ACC_NATURAL;
             update_note_indicator(cur_note_type, cur_accidental);
             continue;
         }
