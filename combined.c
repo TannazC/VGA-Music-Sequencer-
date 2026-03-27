@@ -279,9 +279,13 @@ void play_sequence(void);
 /* ═══════════════════════════════════════════════════════════════════════
    Colours (RGB565 format)
    ═══════════════════════════════════════════════════════════════════════ */
-#define WHITE  ((short int)0xFFFF)
-#define BLACK  ((short int)0x0000)
+/* Converts standard 0-255 RGB values into FPGA-ready RGB 5-6-5 format */
+#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
 
+#define BG_PINK  ((short int)0xFFFF)
+#define BLACK  ((short int)0x0000)
+#define BG_PINK               RGB565(250, 217, 229) 
+#define NOTE_GREEN            RGB565(1, 54, 13)
 /* ═══════════════════════════════════════════════════════════════════════
    Background buffer
 
@@ -373,7 +377,7 @@ static void draw_staves(void)
             int y = staff_top[s] + l * STAFF_SPACING;
 
             for (x = STAFF_X0; x < STAFF_X1; x++)
-                bg_plot(x, y, BLACK);
+                bg_plot(x, y, NOTE_GREEN);
         }
     }
 }
@@ -407,8 +411,8 @@ static void draw_barlines(void)
         int y1 = staff_top[s] + (LINES_PER_STAFF - 1) * STAFF_SPACING;
 
         for (y = y0; y <= y1; y++) {
-            bg_plot(STAFF_X0,     y, BLACK);
-            bg_plot(STAFF_X1 - 1, y, BLACK);
+            bg_plot(STAFF_X0,     y, NOTE_GREEN);
+            bg_plot(STAFF_X1 - 1, y, NOTE_GREEN);
         }
     }
 }
@@ -451,7 +455,7 @@ static void draw_treble_clef(int x0, int y0)
 
             /* Check if this bit is set (pixel should be drawn) */
             if (bits & (1 << (CLEF_BMP_W - 1 - col)))
-                bg_plot(x0 + col, y0 + row, BLACK);
+                bg_plot(x0 + col, y0 + row, NOTE_GREEN);
         }
     }
 }
@@ -493,13 +497,13 @@ void build_and_draw_background(void)
             (volatile short int *)(pixel_buffer_start + (y << 10));
 
         for (x = 0; x < 512; x++)
-            row[x] = WHITE;
+            row[x] = BG_PINK;
     }
 
     /* ── Step 2: initialise bg[][] to match screen (all white) ── */
     for (y = 0; y < FB_HEIGHT; y++)
         for (x = 0; x < FB_WIDTH; x++)
-            bg[y][x] = WHITE;
+            bg[y][x] = BG_PINK;
 
     /* ── Step 3–4: draw staff structure ── */
     draw_staves();
@@ -549,6 +553,20 @@ void build_and_draw_background(void)
 // Skipped local include by merge script: #include "toolbar.h"
 // Skipped local include by merge script: #include "background.h"    /* FB_WIDTH, FB_HEIGHT */
 
+/* =======================================================================
+   Custom Brand Palette (Converted to RGB 5-6-5)
+   ======================================================================= */
+#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
+
+#define COLOR_SPEARMINT       RGB565(75, 145, 125) 
+#define COLOR_NEON_SPEARMINT  RGB565(87, 200, 160) 
+#define COLOR_FUCHSIA         RGB565(240, 55, 165) 
+#define COLOR_CITRIC          RGB565(205, 245, 100) 
+#define COLOR_MUTED_NEON_BLUE RGB565(69, 185, 220) 
+#define COLOR_WHITE           RGB565(255, 255, 255) 
+#define COLOR_BLACK           RGB565(0, 0, 0)
+
+
 /* plot_pixel is defined in main.c */
 extern void plot_pixel(int x, int y, short int c);
 
@@ -580,41 +598,59 @@ ToolbarState toolbar_state = {
 #define GROUP_SEP       8   
  
 /* =======================================================================
+   Custom Brand Palette (Converted to RGB 5-6-5)
+   ======================================================================= */
+#define COLOR_SPEARMINT       ((short int)0x4C8F) 
+#define COLOR_NEON_SPEARMINT  ((short int)0x5778) 
+#define COLOR_FUCHSIA         ((short int)0xF1B4) 
+#define COLOR_CITRIC          ((short int)0xCFAC) 
+#define COLOR_MUTED_NEON_BLUE ((short int)0x45B9) 
+#define COLOR_WHITE           ((short int)0xFFFF) 
+#define COLOR_BLACK           ((short int)0x0000) 
+
+/* =======================================================================
    Colour palette  (RGB 5-6-5)
    ======================================================================= */
+/* Base Toolbar Colors */
 #define TB_BG           ((short int)0xDEFB)  
-#define TB_BORDER       ((short int)0x4208)  
-#define TB_DIV          ((short int)0x8410)  
+#define TB_BORDER       COLOR_BLACK          
+#define TB_DIV          COLOR_BLACK          
+
+/* Transport - Play */
+#define TB_PLAY_FILL    COLOR_SPEARMINT  
+#define TB_PLAY_FILL_A  COLOR_NEON_SPEARMINT      
+#define TB_PLAY_ICO     COLOR_WHITE  
+#define TB_PLAY_KEY     COLOR_WHITE
  
-#define TB_PLAY_FILL    ((short int)0x2D06)  
-#define TB_PLAY_FILL_A  ((short int)0x07C0)  
-#define TB_PLAY_ICO     ((short int)0xFFFF)  
-#define TB_PLAY_KEY     ((short int)0xFFFF)
+/* Transport - Pause */
+#define TB_PAUSE_FILL   COLOR_FUCHSIA  
+#define TB_PAUSE_FILL_A COLOR_CITRIC  
+#define TB_PAUSE_ICO    COLOR_WHITE
+#define TB_PAUSE_KEY    COLOR_WHITE
  
-#define TB_PAUSE_FILL   ((short int)0x7320)  
-#define TB_PAUSE_FILL_A ((short int)0xFEA0)  
-#define TB_PAUSE_ICO    ((short int)0xFFFF)
-#define TB_PAUSE_KEY    ((short int)0xFFFF)
+/* Transport - Stop */
+#define TB_STOP_FILL    COLOR_MUTED_NEON_BLUE  
+#define TB_STOP_FILL_A  COLOR_WHITE  
+#define TB_STOP_ICO     COLOR_WHITE
+#define TB_STOP_KEY     COLOR_WHITE
+
+/* Transport - Restart */
+#define TB_REST_FILL    COLOR_CITRIC     
+#define TB_REST_FILL_A  COLOR_WHITE      
+#define TB_REST_ICO     COLOR_BLACK      
+#define TB_REST_KEY     COLOR_BLACK      
  
-#define TB_STOP_FILL    ((short int)0x9000)  
-#define TB_STOP_FILL_A  ((short int)0xF800)  
-#define TB_STOP_ICO     ((short int)0xFFFF)
-#define TB_STOP_KEY     ((short int)0xFFFF)
+/* Note-type badges */
+#define TB_NOTE_FILL    COLOR_WHITE
+#define TB_NOTE_TXT     COLOR_BLACK
+#define TB_NOTEA_FILL   COLOR_SPEARMINT
+#define TB_NOTEA_TXT    COLOR_WHITE
  
-#define TB_REST_FILL    ((short int)0x0018)  
-#define TB_REST_FILL_A  ((short int)0x051F)  
-#define TB_REST_ICO     ((short int)0xFFFF)
-#define TB_REST_KEY     ((short int)0xFFFF)
- 
-#define TB_NOTE_FILL    ((short int)0xB63B)
-#define TB_NOTE_TXT     ((short int)0x0000)
-#define TB_NOTEA_FILL   ((short int)0x1C9F)
-#define TB_NOTEA_TXT    ((short int)0xFFFF)
- 
-#define TB_SPC_FILL     ((short int)0x2D26)  
-#define TB_SPC_TXT      ((short int)0xFFFF)
-#define TB_DEL_FILL     ((short int)0x9000)
-#define TB_DEL_TXT      ((short int)0xFFFF)
+/* Action badges */
+#define TB_SPC_FILL     COLOR_SPEARMINT  
+#define TB_SPC_TXT      COLOR_WHITE
+#define TB_DEL_FILL     COLOR_FUCHSIA
+#define TB_DEL_TXT      COLOR_WHITE
 
 /* =======================================================================
    5x7 pixel font

@@ -4,9 +4,13 @@
 /* ═══════════════════════════════════════════════════════════════════════
    Colours (RGB565 format)
    ═══════════════════════════════════════════════════════════════════════ */
-#define WHITE  ((short int)0xFFFF)
-#define BLACK  ((short int)0x0000)
+/* Converts standard 0-255 RGB values into FPGA-ready RGB 5-6-5 format */
+#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
 
+#define BG_PINK  ((short int)0xFFFF)
+#define BLACK  ((short int)0x0000)
+#define BG_PINK               RGB565(250, 217, 229) 
+#define NOTE_GREEN            RGB565(1, 54, 13)
 /* ═══════════════════════════════════════════════════════════════════════
    Background buffer
 
@@ -98,7 +102,7 @@ static void draw_staves(void)
             int y = staff_top[s] + l * STAFF_SPACING;
 
             for (x = STAFF_X0; x < STAFF_X1; x++)
-                bg_plot(x, y, BLACK);
+                bg_plot(x, y, NOTE_GREEN);
         }
     }
 }
@@ -132,8 +136,8 @@ static void draw_barlines(void)
         int y1 = staff_top[s] + (LINES_PER_STAFF - 1) * STAFF_SPACING;
 
         for (y = y0; y <= y1; y++) {
-            bg_plot(STAFF_X0,     y, BLACK);
-            bg_plot(STAFF_X1 - 1, y, BLACK);
+            bg_plot(STAFF_X0,     y, NOTE_GREEN);
+            bg_plot(STAFF_X1 - 1, y, NOTE_GREEN);
         }
     }
 }
@@ -176,7 +180,7 @@ static void draw_treble_clef(int x0, int y0)
 
             /* Check if this bit is set (pixel should be drawn) */
             if (bits & (1 << (CLEF_BMP_W - 1 - col)))
-                bg_plot(x0 + col, y0 + row, BLACK);
+                bg_plot(x0 + col, y0 + row, NOTE_GREEN);
         }
     }
 }
@@ -218,13 +222,13 @@ void build_and_draw_background(void)
             (volatile short int *)(pixel_buffer_start + (y << 10));
 
         for (x = 0; x < 512; x++)
-            row[x] = WHITE;
+            row[x] = BG_PINK;
     }
 
     /* ── Step 2: initialise bg[][] to match screen (all white) ── */
     for (y = 0; y < FB_HEIGHT; y++)
         for (x = 0; x < FB_WIDTH; x++)
-            bg[y][x] = WHITE;
+            bg[y][x] = BG_PINK;
 
     /* ── Step 3–4: draw staff structure ── */
     draw_staves();
