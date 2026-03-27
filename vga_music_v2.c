@@ -46,6 +46,7 @@ int pixel_buffer_start;
 #define KEY_T      0x2C /* T - stop playback, implement later */     
 #define KEY_R      0x2D /* R - restart playback, implement later */
 #define KEY_M  0x3A
+#define KEY_N  0x31
 #define KEY_BREAK  0xF0
 #define KEY_UP     0x75
 #define KEY_DOWN   0x72
@@ -1024,6 +1025,7 @@ int main(void)
 
     int got_break = 0;
     int got_extended = 0;
+    int menu_open = 0;
 
     draw_bottom_tab();
     update_note_indicator(cur_note_type, cur_accidental);
@@ -1039,11 +1041,32 @@ int main(void)
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break)      { got_break = 0; got_extended = 0; continue; }
 
-        /* ── M: clear all placed notes and reload the staves ── */
+        /* ── M: toggle options menu ── */
         if (b == KEY_M) {
-            clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
+            if (menu_open) {
+                menu_open = 0;
+                build_and_draw_background();
+                draw_toolbar(cur_note_type);
+                draw_bottom_tab();
+                update_note_indicator(cur_note_type, cur_accidental);
+                redraw_all_notes();
+                draw_cursor_cell(cur_x, cur_y);
+            } else {
+                menu_open = 1;
+                draw_options_menu();
+            }
             continue;
         }
+
+        /* ── N: clear all placed notes and reload the staves ── */
+        if (b == KEY_N) {
+            clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
+            menu_open = 0;
+            continue;
+        }
+
+        /* Block all other keyboard inputs while the menu is open. */
+        if (menu_open) continue;
 
         /* 1-7: select note type */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;
