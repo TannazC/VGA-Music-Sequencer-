@@ -191,6 +191,9 @@ void draw_bottom_tab(void);
 /* Draws the static pop-up menu in the center of the screen */
 void draw_options_menu(void);
 
+/* Updates the dynamic BPM counter on the toolbar */
+void toolbar_set_bpm(int bpm);
+
 #endif /* TOOLBAR_H */
 /* =========================================
    End of toolbar.h
@@ -282,7 +285,6 @@ void play_sequence(void);
 /* Converts standard 0-255 RGB values into FPGA-ready RGB 5-6-5 format */
 #define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
 
-#define BG_PINK  ((short int)0xFFFF)
 #define BLACK  ((short int)0x0000)
 #define BG_PINK               RGB565(250, 217, 229) 
 #define NOTE_GREEN            RGB565(1, 54, 13)
@@ -553,20 +555,6 @@ void build_and_draw_background(void)
 // Skipped local include by merge script: #include "toolbar.h"
 // Skipped local include by merge script: #include "background.h"    /* FB_WIDTH, FB_HEIGHT */
 
-/* =======================================================================
-   Custom Brand Palette (Converted to RGB 5-6-5)
-   ======================================================================= */
-#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
-
-#define COLOR_SPEARMINT       RGB565(75, 145, 125) 
-#define COLOR_NEON_SPEARMINT  RGB565(87, 200, 160) 
-#define COLOR_FUCHSIA         RGB565(240, 55, 165) 
-#define COLOR_CITRIC          RGB565(205, 245, 100) 
-#define COLOR_MUTED_NEON_BLUE RGB565(69, 185, 220) 
-#define COLOR_WHITE           RGB565(255, 255, 255) 
-#define COLOR_BLACK           RGB565(0, 0, 0)
-
-
 /* plot_pixel is defined in main.c */
 extern void plot_pixel(int x, int y, short int c);
 
@@ -592,21 +580,23 @@ ToolbarState toolbar_state = {
 /* Widths */
 #define BADGE_W_TRANS  30   /* Uniform 30px width for ALL transport buttons */
 #define BADGE_W1       14   
-#define BADGE_W_SPC    34   
-#define BADGE_W_BKSP   28   
+#define BADGE_W_TMP_BTN 14  /* Square +/- buttons */
+#define BADGE_W_TMP_VAL 26  /* Wide enough to hold a 3-digit number */
 #define BADGE_GAP       2   
-#define GROUP_SEP       8   
+#define GROUP_SEP       8
  
 /* =======================================================================
    Custom Brand Palette (Converted to RGB 5-6-5)
    ======================================================================= */
-#define COLOR_SPEARMINT       ((short int)0x4C8F) 
-#define COLOR_NEON_SPEARMINT  ((short int)0x5778) 
-#define COLOR_FUCHSIA         ((short int)0xF1B4) 
-#define COLOR_CITRIC          ((short int)0xCFAC) 
-#define COLOR_MUTED_NEON_BLUE ((short int)0x45B9) 
-#define COLOR_WHITE           ((short int)0xFFFF) 
-#define COLOR_BLACK           ((short int)0x0000) 
+#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
+
+#define COLOR_SPEARMINT       RGB565(75, 145, 125) 
+#define COLOR_NEON_SPEARMINT  RGB565(87, 200, 160) 
+#define COLOR_FUCHSIA         RGB565(240, 55, 165) 
+#define COLOR_CITRIC          RGB565(205, 245, 100) 
+#define COLOR_MUTED_NEON_BLUE RGB565(69, 185, 220) 
+#define COLOR_WHITE           RGB565(255, 255, 255) 
+#define COLOR_BLACK           RGB565(0, 0, 0)
 
 /* =======================================================================
    Colour palette  (RGB 5-6-5)
@@ -657,6 +647,7 @@ ToolbarState toolbar_state = {
    ======================================================================= */
 static const unsigned char *get_glyph(unsigned char c)
 {
+    static const unsigned char G_0[7]={0x0E,0x11,0x13,0x15,0x19,0x11,0x0E};
     static const unsigned char G_1[7]={0x04,0x0C,0x04,0x04,0x04,0x04,0x0E};
     static const unsigned char G_2[7]={0x0E,0x11,0x01,0x02,0x04,0x08,0x1F};
     static const unsigned char G_3[7]={0x0E,0x11,0x01,0x06,0x01,0x11,0x0E};
@@ -664,6 +655,10 @@ static const unsigned char *get_glyph(unsigned char c)
     static const unsigned char G_5[7]={0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E};
     static const unsigned char G_6[7]={0x0E,0x11,0x10,0x1E,0x11,0x11,0x0E};
     static const unsigned char G_7[7]={0x1F,0x01,0x02,0x04,0x08,0x10,0x10};
+    static const unsigned char G_8[7]={0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E};
+    static const unsigned char G_9[7]={0x0E,0x11,0x11,0x0F,0x01,0x01,0x0E};
+    static const unsigned char G_PLUS[7]={0x00,0x04,0x04,0x1F,0x04,0x04,0x00};
+    static const unsigned char G_MINUS[7]={0x00,0x00,0x00,0x1F,0x00,0x00,0x00};
     
     static const unsigned char G_A[7]={0x0E,0x11,0x11,0x1F,0x11,0x11,0x11};
     static const unsigned char G_B[7]={0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E};
@@ -701,6 +696,8 @@ static const unsigned char *get_glyph(unsigned char c)
         case 'N': return G_N; case 'O': return G_O; case 'U': return G_U;
         case '[': return G_LBRACKET; case ']': return G_RBRACKET;
         case 'H': return G_H; case 'W': return G_W; case '-': return G_DASH;
+        case '0': return G_0; case '8': return G_8; case '9': return G_9;
+        case '+': return G_PLUS; 
         default:  return 0;
     }
 }
@@ -835,8 +832,10 @@ static void tb_group_div(int x) { tb_vline(x,TOOLBAR_TOP+2,BADGE_Y1,TB_DIV); }
 /* =======================================================================
    Internal state saved for partial redraws
    ======================================================================= */
-static int g_note_badge_x0 = 0;   
-static int g_trans_x0      = 0;   
+static int g_note_badge_x0 = 0;
+static int g_trans_x0 = 0;
+static int g_bpm_badge_x0 = 0;
+
 static int note_badge_x(int i) { return g_note_badge_x0 + i*(BADGE_W1+BADGE_GAP); }
  
 /* =======================================================================
@@ -876,9 +875,17 @@ void draw_toolbar(int cur_note_type)
  
     x += GROUP_SEP/2; tb_group_div(x); x += GROUP_SEP/2;
  
-    /* Group 3: Actions (SPACE and BKSP) */
-    x = tb_badge(x, BADGE_W_SPC, "SPACE", TB_SPC_FILL, TB_SPC_TXT) + BADGE_GAP;
-    tb_badge(x, BADGE_W_BKSP, "BKSP", TB_DEL_FILL, TB_DEL_TXT);
+    /* Group 3: Tempo Control [-] [120] [+] */
+    x = tb_badge(x, BADGE_W_TMP_BTN, "-", COLOR_FUCHSIA, COLOR_WHITE) + BADGE_GAP;
+    
+    /* Save the X coordinate so we can dynamically overwrite the number later */
+    g_bpm_badge_x0 = x; 
+    
+    /* Draw the initial BPM number badge */
+    toolbar_set_bpm(toolbar_state.bpm);
+    x += BADGE_W_TMP_VAL + BADGE_GAP; 
+    
+    x = tb_badge(x, BADGE_W_TMP_BTN, "+", COLOR_SPEARMINT, COLOR_WHITE);
 }
  
 /* =======================================================================
@@ -961,6 +968,36 @@ void draw_options_menu(void) {
     
     /* Footer */
     tb_draw_string(x0 + 45, y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+}
+
+/* =======================================================================
+   Dynamic Tempo Badge
+   ======================================================================= */
+
+void toolbar_set_bpm(int bpm) {
+    char str[4];
+    
+    /* Clamp the tempo FIRST so it never drops below 40 or above 999 */
+    if (bpm > 999) bpm = 999;
+    if (bpm < 40) bpm = 40;
+    
+    /* THEN save the safe, clamped number to the system state */
+    toolbar_state.bpm = bpm;
+    
+    /* Convert integer to characters manually to save memory */
+    str[0] = '0' + (bpm / 100);
+    str[1] = '0' + ((bpm / 10) % 10);
+    str[2] = '0' + (bpm % 10);
+    str[3] = '\0';
+    
+    /* Drop the leading zero if the BPM is under 100 (e.g., ' 90') */
+    char *display_str = str;
+    if (str[0] == '0') {
+        display_str = &str[1];
+    }
+    
+    /* Redraw just the middle number badge */
+    tb_badge(g_bpm_badge_x0, BADGE_W_TMP_VAL, display_str, COLOR_WHITE, COLOR_BLACK);
 }
 /* =========================================
    End of toolbar.c
@@ -1528,6 +1565,10 @@ int pixel_buffer_start;
 #define KEY_R      0x2D /* R - restart playback, implement later */
 #define KEY_M  0x3A
 #define KEY_BREAK  0xF0
+
+//For the Tempo
+#define KEY_MINUS  0x4E
+#define KEY_EQUALS 0x55
 
 /* ═══════════════════════════════════════════════════════════════════════
    Note types  (left-to-right matches the reference image)
@@ -2204,6 +2245,16 @@ int main(void)
         if (b == KEY_DELETE)
             delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
 
+        /* ── - / +: Adjust Tempo ── */
+        if (b == KEY_MINUS) {
+            toolbar_set_bpm(toolbar_state.bpm - 5);
+            continue;
+        }
+        if (b == KEY_EQUALS) {
+            toolbar_set_bpm(toolbar_state.bpm + 5);
+            continue;
+        }
+        
         /* ── W/A/S/D: navigate ── */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             int new_col = cur_col;

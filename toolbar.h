@@ -86,4 +86,7 @@ void draw_bottom_tab(void);
 /* Draws the static pop-up menu in the center of the screen */
 void draw_options_menu(void);
 
+/* Updates the dynamic BPM counter on the toolbar */
+void toolbar_set_bpm(int bpm);
+
 #endif /* TOOLBAR_H */

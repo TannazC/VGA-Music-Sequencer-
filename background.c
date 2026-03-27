@@ -7,7 +7,6 @@
 /* Converts standard 0-255 RGB values into FPGA-ready RGB 5-6-5 format */
 #define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
 
-#define BG_PINK  ((short int)0xFFFF)
 #define BLACK  ((short int)0x0000)
 #define BG_PINK               RGB565(250, 217, 229) 
 #define NOTE_GREEN            RGB565(1, 54, 13)

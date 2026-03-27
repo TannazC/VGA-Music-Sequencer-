@@ -43,6 +43,10 @@ int pixel_buffer_start;
 #define KEY_M  0x3A
 #define KEY_BREAK  0xF0
 
+//For the Tempo
+#define KEY_MINUS  0x4E
+#define KEY_EQUALS 0x55
+
 /* ═══════════════════════════════════════════════════════════════════════
    Note types  (left-to-right matches the reference image)
    ─────────────────────────────────────────────────────────────────────
@@ -718,6 +722,16 @@ int main(void)
         if (b == KEY_DELETE)
             delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
 
+        /* ── - / +: Adjust Tempo ── */
+        if (b == KEY_MINUS) {
+            toolbar_set_bpm(toolbar_state.bpm - 5);
+            continue;
+        }
+        if (b == KEY_EQUALS) {
+            toolbar_set_bpm(toolbar_state.bpm + 5);
+            continue;
+        }
+        
         /* ── W/A/S/D: navigate ── */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             int new_col = cur_col;
