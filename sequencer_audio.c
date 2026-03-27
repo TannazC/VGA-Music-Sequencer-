@@ -93,6 +93,11 @@ static inline int32_t clamp24(int32_t x)
 #define NOTE_SINGLE16TH 6
 #define NUM_NOTE_TYPES  7
 
+#define ACC_NONE     0
+#define ACC_SHARP    1
+#define ACC_FLAT     2
+#define ACC_NATURAL  3
+
 /* (unused — kept for reference only)
 static const int note_num_heads_audio[NUM_NOTE_TYPES] = { 1,1,1,2,4,2,1 }; */
 
@@ -118,6 +123,7 @@ typedef struct {
     int pitch_slot;
     int note_type;
     int duration_64;
+    int accidental;
     int num_heads;
     int head_step[MAX_HEADS];
     int head_pitch_slot[MAX_HEADS];
@@ -151,18 +157,59 @@ extern void poll_playback_keys(void);
    staff plays the same scale regardless of which bar it sits in.
    ═══════════════════════════════════════════════════════════════════════ */
 static const int pitch_freq_slot[11] = {
-     784, /* slot  0  G5  (space above top line)    */
-     698, /* slot  1  F5  (top line)                */
-     659, /* slot  2  E5  (space)                   */
-     587, /* slot  3  D5  (line)                    */
-     523, /* slot  4  C5  (space)                   */
-     494, /* slot  5  B4  (middle line)              */
-     440, /* slot  6  A4  (space)                   */
-     392, /* slot  7  G4  (line)                    */
-     349, /* slot  8  F4  (space)                   */
-     330, /* slot  9  E4  (bottom line)              */
-     294  /* slot 10  D4  (space below bottom line)  */
+     784, /* slot  0  G5  */
+     698, /* slot  1  F5  */
+     659, /* slot  2  E5  */
+     587, /* slot  3  D5  */
+     523, /* slot  4  C5  */
+     494, /* slot  5  B4  */
+     440, /* slot  6  A4  */
+     392, /* slot  7  G4  */
+     349, /* slot  8  F4  */
+     330, /* slot  9  E4  */
+     294  /* slot 10  D4  */
 };
+
+static const int pitch_freq_slot_sharp[11] = {
+     831, /* G#5 */
+     740, /* F#5 */
+     698, /* E#5 -> F5 */
+     622, /* D#5 */
+     554, /* C#5 */
+     523, /* B#4 -> C5 */
+     466, /* A#4 */
+     415, /* G#4 */
+     370, /* F#4 */
+     349, /* E#4 -> F4 */
+     311  /* D#4 */
+};
+
+static const int pitch_freq_slot_flat[11] = {
+     740, /* Gb5 */
+     659, /* Fb5 -> E5 */
+     622, /* Eb5 */
+     554, /* Db5 */
+     494, /* Cb5 -> B4 */
+     466, /* Bb4 */
+     415, /* Ab4 */
+     370, /* Gb4 */
+     330, /* Fb4 -> E4 */
+     311, /* Eb4 */
+     277  /* Db4 */
+};
+
+static int note_frequency_hz(int slot, int accidental)
+{
+    if (slot < 0 || slot >= 11) return 0;
+
+    switch (accidental) {
+    case ACC_SHARP:   return pitch_freq_slot_sharp[slot];
+    case ACC_FLAT:    return pitch_freq_slot_flat[slot];
+    case ACC_NATURAL: return pitch_freq_slot[slot];
+    case ACC_NONE:
+    default:          return pitch_freq_slot[slot];
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Audio timing
@@ -391,7 +438,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
             {
                 Osc osc;
                 int slot    = notes[i].head_pitch_slot[h];
-                int freq    = (slot >= 0 && slot < 11) ? pitch_freq_slot[slot] : 0;
+                int freq    = note_frequency_hz(slot, notes[i].accidental);
                 int total_s = notes[i].duration_64 * SAMPS_PER_64;
                 int nh      = notes[i].num_heads;
                 int head_s  = (nh > 1) ? (total_s / nh) : total_s;
