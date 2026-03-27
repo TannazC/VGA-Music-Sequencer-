@@ -25,6 +25,10 @@ int pixel_buffer_start;
 #define KEY_A      0x1C
 #define KEY_S      0x1B
 #define KEY_D      0x23
+#define KEY_Z      0x1A   /* accidental off     */
+#define KEY_X      0x22   /* sharp toggle       */
+#define KEY_C      0x21   /* flat toggle        */
+#define KEY_V      0x2A   /* natural toggle     */
 
 #define KEY_1      0x16   /* Whole note       (1 head)  */
 #define KEY_2      0x1E   /* Half note        (1 head)  */
@@ -62,6 +66,11 @@ int pixel_buffer_start;
 #define NOTE_BEAM2_16TH 5   /* 2 beamed 16ths   (beam group) –  8/64  2 heads */
 #define NOTE_SINGLE16TH 6   /* single 16th flag              –  4/64  1 head  */
 #define NUM_NOTE_TYPES  7
+
+#define ACC_NONE     0
+#define ACC_SHARP    1
+#define ACC_FLAT     2
+#define ACC_NATURAL  3
 
 /* Total duration of the whole glyph in 1/64-note units */
 static const int note_duration_64[NUM_NOTE_TYPES] = {
@@ -137,6 +146,7 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
     int pitch_slot;   /* 0 (top) .. 8 (bottom) in staff    */
     int note_type;    /* NOTE_WHOLE .. NOTE_SINGLE16TH      */
     int duration_64;  /* total glyph duration in 1/64 units */
+    int accidental;   /* ACC_NONE / ACC_SHARP / ACC_FLAT / ACC_NATURAL */
 
     /* Sub-beat positions (playback use) */
     int num_heads;
@@ -154,6 +164,7 @@ Note notes[MAX_NOTES];
 int  num_notes = 0;
 
 int cur_note_type = NOTE_QUARTER;
+int cur_accidental = ACC_NONE;
 
 /* ═══════════════════════════════════════════════════════════════════════
    Grid helpers
@@ -329,14 +340,65 @@ static void beam_bar(int x0, int x1, int y_top, int thick, short int c)
             plot_pixel(x, y_top + t, c);
 }
 
+static void draw_accidental_symbol(int cx, int cy, int accidental, short int c)
+{
+    int x, y;
+
+    /*
+       Place the accidental midway between the current note head and the
+       previous beat slot so it stays visually attached to this note without
+       colliding with neighbouring heads.
+    */
+    int ax = cx - STEP_W / 2;
+
+    if (accidental == ACC_NONE) return;
+
+    if (accidental == ACC_SHARP) {
+        for (y = cy - 6; y <= cy + 2; y++) {
+            plot_pixel(ax - 1, y, c);
+            plot_pixel(ax + 1, y, c);
+        }
+        for (x = ax - 4; x <= ax + 2; x++) {
+            plot_pixel(x,     cy - 3, c);
+            plot_pixel(x + 1, cy + 1, c);
+        }
+        return;
+    }
+
+    if (accidental == ACC_FLAT) {
+        for (y = cy - 6; y <= cy + 3; y++)
+            plot_pixel(ax - 1, y, c);
+
+        plot_pixel(ax,     cy - 1, c);
+        plot_pixel(ax + 1, cy,     c);
+        plot_pixel(ax + 2, cy + 1, c);
+        plot_pixel(ax + 2, cy + 2, c);
+        plot_pixel(ax + 1, cy + 3, c);
+        plot_pixel(ax,     cy + 4, c);
+        return;
+    }
+
+    if (accidental == ACC_NATURAL) {
+        for (y = cy - 6; y <= cy + 3; y++) {
+            plot_pixel(ax - 1, y, c);
+            plot_pixel(ax + 1, y - 2, c);
+        }
+        for (x = ax - 1; x <= ax + 2; x++) {
+            plot_pixel(x, cy - 2, c);
+            plot_pixel(x, cy + 2, c);
+        }
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    draw_note_glyph
    Draws the complete visual glyph for note type `nt` anchored at (cx,cy).
    For beamed types, additional heads are at cx + i*STEP_W (i=1,2,3).
    ═══════════════════════════════════════════════════════════════════════ */
-static void draw_note_glyph(int cx, int cy, int nt, short int c)
+static void draw_note_glyph(int cx, int cy, int nt, int accidental, short int c)
 {
     int i;
+    draw_accidental_symbol(cx, cy, accidental, c);
     /* x of each stem (right edge of each head) */
     int stem_top_y = cy - STEM_HEIGHT;
 
@@ -412,7 +474,7 @@ static void draw_note_glyph(int cx, int cy, int nt, short int c)
 static void erase_note_glyph(int cx, int cy)
 {
     int x, y;
-    int x0 = cx - OVAL_W/2;
+    int x0 = cx - STEP_W - 6;
     int x1 = cx + GLYPH_ERASE_W;
     int y0 = cy - GLYPH_ERASE_H;
     int y1 = cy + OVAL_H/2 + 2;
@@ -427,7 +489,7 @@ static void redraw_all_notes(void)
     int i;
     for (i = 0; i < num_notes; i++)
         draw_note_glyph(notes[i].screen_x, notes[i].screen_y,
-                        notes[i].note_type, BLACK);
+                        notes[i].note_type, notes[i].accidental, BLACK);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -499,13 +561,14 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     notes[num_notes].pitch_slot  = cur_slot;
     notes[num_notes].note_type   = nt;
     notes[num_notes].duration_64 = note_duration_64[nt];
+    notes[num_notes].accidental  = cur_accidental;
     notes[num_notes].screen_x    = cur_x;
     notes[num_notes].screen_y    = cur_y;
     fill_note_heads(&notes[num_notes], cur_col, cur_staff, cur_slot,
                     cur_x, cur_y, nt);
     num_notes++;
 
-    draw_note_glyph(cur_x, cur_y, nt, BLACK);
+    draw_note_glyph(cur_x, cur_y, nt, cur_accidental, BLACK);
     draw_cursor_cell(cur_x, cur_y);
 }
 
@@ -610,21 +673,29 @@ void poll_playback_keys(void)
 /* =======================================================================
    Dynamic Current Note Indicator
    ======================================================================= */
-static void update_note_indicator(int nt) {
+static const char *accidental_label(int accidental)
+{
+    if (accidental == ACC_SHARP)   return "ACC: #";
+    if (accidental == ACC_FLAT)    return "ACC: b";
+    if (accidental == ACC_NATURAL) return "ACC: natural";
+    return "ACC: off";
+}
+
+static void update_note_indicator(int nt, int accidental) {
     int x, y;
 
-    /* 1. Draw the static text label */
-    tb_draw_string(10, 224, "CURRENT NOTE", BLACK);
-
-    /* 2. Erase the old note glyph area safely using the bg buffer */
+    /* Clear the entire current-note UI strip before redrawing it. */
     for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 85; x < 180; x++) {
+        for (x = 0; x < 220; x++) {
             plot_pixel(x, y, bg[y][x]);
         }
     }
 
-    /* 3. Draw the new note glyph right next to the text */
-    draw_note_glyph(100, 232, nt, BLACK);
+    tb_draw_string(10, 216, "CURRENT NOTE", BLACK);
+    tb_draw_string(10, 232, accidental_label(accidental), BLACK);
+
+    /* Draw the preview glyph with the currently selected accidental. */
+    draw_note_glyph(132, 232, nt, accidental, BLACK);
 }
 
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
@@ -659,7 +730,7 @@ int main(void)
 
     int menu_open = 0;
     draw_bottom_tab();
-    update_note_indicator(cur_note_type);
+    update_note_indicator(cur_note_type, cur_accidental);
 
     while (1)
     {
@@ -681,7 +752,7 @@ int main(void)
                 draw_toolbar(cur_note_type);
                 draw_bottom_tab();
                 
-                update_note_indicator(cur_note_type);
+                update_note_indicator(cur_note_type, cur_accidental);
 
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
@@ -698,25 +769,25 @@ int main(void)
         /* 1-7: select note type */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_2){cur_note_type = NOTE_HALF;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_3){cur_note_type = NOTE_QUARTER;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; 
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue; }
+                        update_note_indicator(cur_note_type, cur_accidental); continue; }
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH;
                         toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type); continue;}
+                        update_note_indicator(cur_note_type, cur_accidental); continue;}
 
         /* Q: play sequence */
         if (b == KEY_Q) {
@@ -743,6 +814,28 @@ int main(void)
             toolbar_set_playback(TB_STATE_STOPPED);
             redraw_all_notes();
             draw_cursor_cell(cur_x, cur_y);
+            continue;
+        }
+
+        /* ── Z/X/C/V: accidental mode for newly placed notes ── */
+        if (b == KEY_Z) {
+            cur_accidental = ACC_NONE;
+            update_note_indicator(cur_note_type, cur_accidental);
+            continue;
+        }
+        if (b == KEY_X) {
+            cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
+            update_note_indicator(cur_note_type, cur_accidental);
+            continue;
+        }
+        if (b == KEY_C) {
+            cur_accidental = (cur_accidental == ACC_FLAT) ? ACC_NONE : ACC_FLAT;
+            update_note_indicator(cur_note_type, cur_accidental);
+            continue;
+        }
+        if (b == KEY_V) {
+            cur_accidental = (cur_accidental == ACC_NATURAL) ? ACC_NONE : ACC_NATURAL;
+            update_note_indicator(cur_note_type, cur_accidental);
             continue;
         }
 
