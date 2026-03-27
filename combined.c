@@ -2543,6 +2543,38 @@ static void update_note_indicator(int nt, int accidental) {
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
+static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental,
+                                       int cur_x, int cur_y)
+{
+    int i, h;
+
+    for (i = 0; i < MAX_NOTES; i++) {
+        notes[i].step = 0;
+        notes[i].staff = 0;
+        notes[i].pitch_slot = 0;
+        notes[i].note_type = NOTE_QUARTER;
+        notes[i].duration_64 = 0;
+        notes[i].accidental = ACC_NONE;
+        notes[i].num_heads = 0;
+        notes[i].screen_x = 0;
+        notes[i].screen_y = 0;
+        for (h = 0; h < MAX_HEADS; h++) {
+            notes[i].head_step[h] = 0;
+            notes[i].head_pitch_slot[h] = 0;
+            notes[i].head_x[h] = 0;
+            notes[i].head_y[h] = 0;
+        }
+    }
+
+    num_notes = 0;
+
+    build_and_draw_background();
+    draw_toolbar(cur_note_type);
+    draw_bottom_tab();
+    update_note_indicator(cur_note_type, cur_accidental);
+    draw_cursor_cell(cur_x, cur_y);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    Main
    ═══════════════════════════════════════════════════════════════════════ */
@@ -2571,7 +2603,6 @@ int main(void)
     int got_break = 0;
     int got_extended = 0;
 
-    int menu_open = 0;
     draw_bottom_tab();
     update_note_indicator(cur_note_type, cur_accidental);
 
@@ -2586,28 +2617,11 @@ int main(void)
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break)      { got_break = 0; got_extended = 0; continue; }
 
-        /* ── M: Toggle Options Menu ── */
+        /* ── M: clear all placed notes and reload the staves ── */
         if (b == KEY_M) {
-            if (menu_open) {
-                menu_open = 0;
-                /* Wipe the menu away by redrawing the background & notes */
-                build_and_draw_background();
-                draw_toolbar(cur_note_type);
-                draw_bottom_tab();
-                
-                update_note_indicator(cur_note_type, cur_accidental);
-
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
-            } else {
-                menu_open = 1;
-                draw_options_menu();
-            }
+            clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
             continue;
         }
-
-        /* Block all other keyboard inputs if the menu is open */
-        if (menu_open) continue;
 
         /* 1-7: select note type */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;
