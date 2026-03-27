@@ -46,6 +46,8 @@ int pixel_buffer_start;
 #define KEY_R      0x2D /* R - restart playback, implement later */
 #define KEY_M  0x3A
 #define KEY_BREAK  0xF0
+#define KEY_UP     0x75
+#define KEY_DOWN   0x72
 
 //For the Tempo
 #define KEY_MINUS  0x4E
@@ -395,91 +397,173 @@ static void draw_accidental_symbol(int cx, int cy, int accidental, short int c)
    Draws the complete visual glyph for note type `nt` anchored at (cx,cy).
    For beamed types, additional heads are at cx + i*STEP_W (i=1,2,3).
    ═══════════════════════════════════════════════════════════════════════ */
-static void draw_note_glyph(int cx, int cy, int nt, int accidental, short int c)
+static void draw_stem_segment(int ax, int ay, short int c)
+{
+    int y;
+    for (y = ay - STEM_HEIGHT; y <= ay; y++)
+        plot_pixel(ax + STEM_X_OFF, y, c);
+}
+
+static void beam_segment(int x0, int y0, int x1, int y1, int thick, short int c)
+{
+    int x, t;
+    if (x1 < x0) {
+        int tx = x0, ty = y0;
+        x0 = x1; y0 = y1;
+        x1 = tx; y1 = ty;
+    }
+    if (x1 == x0) {
+        beam_bar(x0, x1, y0, thick, c);
+        return;
+    }
+    for (x = x0; x <= x1; x++) {
+        int y = y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+        for (t = 0; t < thick; t++)
+            plot_pixel(x, y + t, c);
+    }
+}
+
+static void draw_note_instance(const Note *n, short int c)
 {
     int i;
-    draw_accidental_symbol(cx, cy, accidental, c);
-    /* x of each stem (right edge of each head) */
-    int stem_top_y = cy - STEM_HEIGHT;
 
-    switch (nt) {
+    if (n->num_heads <= 0) return;
 
-    /* ── Whole: open oval, no stem ── */
+    draw_accidental_symbol(n->head_x[0], n->head_y[0], n->accidental, c);
+
+    switch (n->note_type) {
     case NOTE_WHOLE:
-        open_oval(cx, cy, c);
+        open_oval(n->head_x[0], n->head_y[0], c);
         break;
 
-    /* ── Half: open oval + stem ── */
     case NOTE_HALF:
-        open_oval(cx, cy, c);
-        stem_up(cx, cy, c);
+        open_oval(n->head_x[0], n->head_y[0], c);
+        draw_stem_segment(n->head_x[0], n->head_y[0], c);
         break;
 
-    /* ── Quarter: filled oval + stem ── */
     case NOTE_QUARTER:
-        filled_oval(cx, cy, c);
-        stem_up(cx, cy, c);
+        filled_oval(n->head_x[0], n->head_y[0], c);
+        draw_stem_segment(n->head_x[0], n->head_y[0], c);
         break;
 
-    /* ── 2 beamed eighths: 2 heads + 2 stems + 1 beam bar ── */
     case NOTE_BEAM2_8TH:
-        for (i = 0; i < 2; i++) {
-            filled_oval(cx + i * STEP_W, cy, c);
-            stem_up(cx + i * STEP_W, cy, c);
+        for (i = 0; i < n->num_heads; i++) {
+            filled_oval(n->head_x[i], n->head_y[i], c);
+            draw_stem_segment(n->head_x[i], n->head_y[i], c);
         }
-        /* beam across stem tops */
-        beam_bar(cx + STEM_X_OFF, cx + STEP_W + STEM_X_OFF,
-                 stem_top_y, BEAM_THICK, c);
+        for (i = 0; i < n->num_heads - 1; i++) {
+            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
+                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+                         BEAM_THICK, c);
+        }
         break;
 
-    /* ── 4 beamed 16ths: 4 heads + 4 stems + 2 beam bars ── */
     case NOTE_BEAM4_16TH:
-        for (i = 0; i < 4; i++) {
-            filled_oval(cx + i * STEP_W, cy, c);
-            stem_up(cx + i * STEP_W, cy, c);
+        for (i = 0; i < n->num_heads; i++) {
+            filled_oval(n->head_x[i], n->head_y[i], c);
+            draw_stem_segment(n->head_x[i], n->head_y[i], c);
         }
-        /* two beam bars, second one 3px below first */
-        beam_bar(cx + STEM_X_OFF, cx + 3 * STEP_W + STEM_X_OFF,
-                 stem_top_y, BEAM_THICK, c);
-        beam_bar(cx + STEM_X_OFF, cx + 3 * STEP_W + STEM_X_OFF,
-                 stem_top_y + BEAM_THICK + 1, BEAM_THICK, c);
+        for (i = 0; i < n->num_heads - 1; i++) {
+            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
+                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+                         BEAM_THICK, c);
+            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT + BEAM_THICK + 1,
+                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT + BEAM_THICK + 1,
+                         BEAM_THICK, c);
+        }
         break;
 
-    /* ── 2 beamed 16ths: 2 heads + 2 stems + 2 beam bars ── */
     case NOTE_BEAM2_16TH:
-        for (i = 0; i < 2; i++) {
-            filled_oval(cx + i * STEP_W, cy, c);
-            stem_up(cx + i * STEP_W, cy, c);
+        for (i = 0; i < n->num_heads; i++) {
+            filled_oval(n->head_x[i], n->head_y[i], c);
+            draw_stem_segment(n->head_x[i], n->head_y[i], c);
         }
-        beam_bar(cx + STEM_X_OFF, cx + STEP_W + STEM_X_OFF,
-                 stem_top_y, BEAM_THICK, c);
-        beam_bar(cx + STEM_X_OFF, cx + STEP_W + STEM_X_OFF,
-                 stem_top_y + BEAM_THICK + 1, BEAM_THICK, c);
+        for (i = 0; i < n->num_heads - 1; i++) {
+            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
+                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+                         BEAM_THICK, c);
+            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT + BEAM_THICK + 1,
+                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT + BEAM_THICK + 1,
+                         BEAM_THICK, c);
+        }
         break;
 
-    /* ── Single 16th: filled oval + stem + 2 flags ── */
     case NOTE_SINGLE16TH:
-        filled_oval(cx, cy, c);
-        stem_up(cx, cy, c);
-        double_flag(cx, cy, c);
+        filled_oval(n->head_x[0], n->head_y[0], c);
+        draw_stem_segment(n->head_x[0], n->head_y[0], c);
+        double_flag(n->head_x[0], n->head_y[0], c);
         break;
 
-    default: break;
+    default:
+        break;
     }
+}
+
+/* Generic preview-only glyph used by the current-note indicator. */
+static void draw_note_glyph(int cx, int cy, int nt, int accidental, short int c)
+{
+    Note preview;
+    int i;
+
+    preview.step = 0;
+    preview.staff = 0;
+    preview.pitch_slot = 0;
+    preview.note_type = nt;
+    preview.duration_64 = note_duration_64[nt];
+    preview.accidental = accidental;
+    preview.num_heads = note_num_heads[nt];
+    preview.screen_x = cx;
+    preview.screen_y = cy;
+
+    for (i = 0; i < preview.num_heads; i++) {
+        preview.head_step[i] = i;
+        preview.head_pitch_slot[i] = 0;
+        preview.head_x[i] = cx + i * STEP_W;
+        preview.head_y[i] = cy;
+    }
+    for (i = preview.num_heads; i < MAX_HEADS; i++) {
+        preview.head_step[i] = 0;
+        preview.head_pitch_slot[i] = 0;
+        preview.head_x[i] = 0;
+        preview.head_y[i] = 0;
+    }
+
+    draw_note_instance(&preview, c);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Erase: restore the full bounding box (covers all types conservatively)
    ═══════════════════════════════════════════════════════════════════════ */
-static void erase_note_glyph(int cx, int cy)
+static void erase_note_instance(const Note *n)
 {
-    int x, y;
-    int x0 = cx - STEP_W - 6;
-    int x1 = cx + GLYPH_ERASE_W;
-    int y0 = cy - GLYPH_ERASE_H;
-    int y1 = cy + OVAL_H/2 + 2;
-    for (y = y0; y <= y1; y++)
-        for (x = x0; x <= x1; x++)
+    int x, y, i;
+    int min_x, max_x, min_y, max_y;
+
+    if (n->num_heads <= 0) return;
+
+    min_x = n->head_x[0];
+    max_x = n->head_x[0];
+    min_y = n->head_y[0];
+    max_y = n->head_y[0];
+
+    for (i = 1; i < n->num_heads; i++) {
+        if (n->head_x[i] < min_x) min_x = n->head_x[i];
+        if (n->head_x[i] > max_x) max_x = n->head_x[i];
+        if (n->head_y[i] < min_y) min_y = n->head_y[i];
+        if (n->head_y[i] > max_y) max_y = n->head_y[i];
+    }
+
+    x = min_x - STEP_W;
+    min_x = x;
+    x = max_x + OVAL_W/2 + STEM_X_OFF + FLAG_LEN + 4;
+    max_x = x;
+    y = min_y - STEM_HEIGHT - 8;
+    min_y = y;
+    y = max_y + OVAL_H/2 + 4;
+    max_y = y;
+
+    for (y = min_y; y <= max_y; y++)
+        for (x = min_x; x <= max_x; x++)
             if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
                 plot_pixel(x, y, bg[y][x]);
 }
@@ -488,8 +572,7 @@ static void redraw_all_notes(void)
 {
     int i;
     for (i = 0; i < num_notes; i++)
-        draw_note_glyph(notes[i].screen_x, notes[i].screen_y,
-                        notes[i].note_type, notes[i].accidental, BLACK);
+        draw_note_instance(&notes[i], BLACK);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -515,6 +598,52 @@ static void fill_note_heads(Note *n, int col, int staff, int slot,
         n->head_step[i] = n->head_pitch_slot[i] = 0;
         n->head_x[i] = n->head_y[i] = 0;
     }
+}
+
+
+static int find_note_head_at(int col, int staff, int slot, int *note_idx, int *head_idx)
+{
+    int i, h;
+    for (i = 0; i < num_notes; i++) {
+        if (notes[i].staff != staff) continue;
+        for (h = 0; h < notes[i].num_heads; h++) {
+            if (notes[i].head_step[h] == col && notes[i].head_pitch_slot[h] == slot) {
+                if (note_idx) *note_idx = i;
+                if (head_idx) *head_idx = h;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int move_note_head(int cur_col, int cur_staff, int cur_slot, int delta_slot)
+{
+    int note_idx, head_idx;
+    int new_slot, new_row;
+    Note *n;
+
+    if (!find_note_head_at(cur_col, cur_staff, cur_slot, &note_idx, &head_idx))
+        return 0;
+
+    n = &notes[note_idx];
+    new_slot = n->head_pitch_slot[head_idx] + delta_slot;
+    if (new_slot < 0 || new_slot >= SLOTS_PER_STAFF)
+        return 0;
+
+    erase_note_instance(n);
+
+    n->head_pitch_slot[head_idx] = new_slot;
+    new_row = n->staff * SLOTS_PER_STAFF + new_slot;
+    n->head_y[head_idx] = row_to_y(new_row, 0, 0);
+
+    if (head_idx == 0) {
+        n->pitch_slot = new_slot;
+        n->screen_y = n->head_y[0];
+    }
+
+    redraw_all_notes();
+    return 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -583,11 +712,12 @@ static void delete_note(int cur_col, int cur_staff, int cur_slot,
 {
     int i, h;
     for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != cur_staff || notes[i].pitch_slot != cur_slot)
+        if (notes[i].staff != cur_staff)
             continue;
         for (h = 0; h < notes[i].num_heads; h++) {
-            if (notes[i].head_step[h] == cur_col) {
-                erase_note_glyph(notes[i].screen_x, notes[i].screen_y);
+            if (notes[i].head_step[h] == cur_col &&
+                notes[i].head_pitch_slot[h] == cur_slot) {
+                erase_note_instance(&notes[i]);
                 notes[i] = notes[num_notes - 1];
                 num_notes--;
                 redraw_all_notes();
@@ -727,6 +857,7 @@ int main(void)
     pixel_buffer_start = *pixel_ctrl;
 
     int got_break = 0;
+    int got_extended = 0;
 
     int menu_open = 0;
     draw_bottom_tab();
@@ -739,9 +870,9 @@ int main(void)
 
         unsigned char b = (unsigned char)raw;
 
-        if (b == 0xE0)        continue;
+        if (b == 0xE0) { got_extended = 1; continue; }
         if (b == KEY_BREAK) { got_break = 1; continue; }
-        if (got_break)      { got_break = 0; continue; }
+        if (got_break)      { got_break = 0; got_extended = 0; continue; }
 
         /* ── M: Toggle Options Menu ── */
         if (b == KEY_M) {
@@ -838,6 +969,19 @@ int main(void)
             update_note_indicator(cur_note_type, cur_accidental);
             continue;
         }
+
+        /* ── Up/Down arrows: move the head currently under the cursor ── */
+        if (got_extended && (b == KEY_UP || b == KEY_DOWN)) {
+            int delta = (b == KEY_UP) ? -1 : 1;
+            if (move_note_head(cur_col, cur_staff, cur_slot, delta)) {
+                cur_row += delta;
+                cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
+                draw_cursor_cell(cur_x, cur_y);
+            }
+            got_extended = 0;
+            continue;
+        }
+        got_extended = 0;
 
         /* ── Space: place ── */
         if (b == KEY_SPACE)
