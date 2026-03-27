@@ -51,7 +51,7 @@
 #define TB_STATE_PAUSED   2
 
 /* ── Note type count exported (toolbar only shows 5) ───────────────── */
-#define TB_NUM_NOTE_TYPES  7
+#define TB_NUM_NOTE_TYPES  8
 
 /* ── Global toolbar state ────────────────────────────────────────────
    Defined in toolbar.c; shared via extern with sequencer_audio.c.     */

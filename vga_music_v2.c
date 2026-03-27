@@ -37,6 +37,7 @@ int pixel_buffer_start;
 #define KEY_5      0x2E   /* 4 beamed 16ths   (4 heads) */
 #define KEY_6      0x36   /* 2 beamed 16ths   (2 heads) */
 #define KEY_7      0x3D   /* Single 16th      (1 head)  */
+#define KEY_8      0x3E   /* Rest (quarter)   (1 head)  */
 
 #define KEY_SPACE  0x29
 #define KEY_DELETE 0x66
@@ -67,7 +68,8 @@ int pixel_buffer_start;
 #define NOTE_BEAM4_16TH 4   /* 4 beamed 16ths   (beam group) – 16/64  4 heads */
 #define NOTE_BEAM2_16TH 5   /* 2 beamed 16ths   (beam group) –  8/64  2 heads */
 #define NOTE_SINGLE16TH 6   /* single 16th flag              –  4/64  1 head  */
-#define NUM_NOTE_TYPES  7
+#define NOTE_REST       7   /* quarter rest (silence)        – 16/64  1 head  */
+#define NUM_NOTE_TYPES  8
 
 #define ACC_NONE     0
 #define ACC_SHARP    1
@@ -80,12 +82,13 @@ static const int note_duration_64[NUM_NOTE_TYPES] = {
     16,           /* 2x eighth  = 16/64             */
     16,           /* 4x 16th    = 16/64             */
      8,           /* 2x 16th    =  8/64             */
-     4            /* 1x 16th    =  4/64             */
+     4,           /* 1x 16th    =  4/64             */
+    16            /* rest       = quarter duration  */
 };
 
 /* How many individual note-heads each glyph contains */
 static const int note_num_heads[NUM_NOTE_TYPES] = {
-    1, 1, 1, 2, 4, 2, 1
+    1, 1, 1, 2, 4, 2, 1, 1
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -565,7 +568,67 @@ static void draw_note_instance(const Note *n, short int c)
         double_flag(n->head_x[0], n->head_y[0], c);
         break;
 
-    default:
+    case NOTE_REST:
+    {
+        /* Quarter-rest — scaled to match note symbol height (18px = STEM_HEIGHT + OVAL_H) */
+        int cx = n->head_x[0];
+        int cy = n->head_y[0];
+        plot_pixel(cx+(-1), cy+(-9), c);
+        plot_pixel(cx+(0), cy+(-8), c);
+        plot_pixel(cx+(0), cy+(-7), c);
+        plot_pixel(cx+(1), cy+(-7), c);
+        plot_pixel(cx+(0), cy+(-6), c);
+        plot_pixel(cx+(1), cy+(-6), c);
+        plot_pixel(cx+(2), cy+(-6), c);
+        plot_pixel(cx+(0), cy+(-5), c);
+        plot_pixel(cx+(1), cy+(-5), c);
+        plot_pixel(cx+(2), cy+(-5), c);
+        plot_pixel(cx+(-1), cy+(-4), c);
+        plot_pixel(cx+(0), cy+(-4), c);
+        plot_pixel(cx+(1), cy+(-4), c);
+        plot_pixel(cx+(2), cy+(-4), c);
+        plot_pixel(cx+(-2), cy+(-3), c);
+        plot_pixel(cx+(-1), cy+(-3), c);
+        plot_pixel(cx+(0), cy+(-3), c);
+        plot_pixel(cx+(1), cy+(-3), c);
+        plot_pixel(cx+(-2), cy+(-2), c);
+        plot_pixel(cx+(-1), cy+(-2), c);
+        plot_pixel(cx+(0), cy+(-2), c);
+        plot_pixel(cx+(1), cy+(-2), c);
+        plot_pixel(cx+(-2), cy+(-1), c);
+        plot_pixel(cx+(-1), cy+(-1), c);
+        plot_pixel(cx+(0), cy+(-1), c);
+        plot_pixel(cx+(-2), cy+(0), c);
+        plot_pixel(cx+(-1), cy+(0), c);
+        plot_pixel(cx+(0), cy+(0), c);
+        plot_pixel(cx+(-1), cy+(1), c);
+        plot_pixel(cx+(0), cy+(1), c);
+        plot_pixel(cx+(0), cy+(2), c);
+        plot_pixel(cx+(1), cy+(2), c);
+        plot_pixel(cx+(-2), cy+(3), c);
+        plot_pixel(cx+(-1), cy+(3), c);
+        plot_pixel(cx+(0), cy+(3), c);
+        plot_pixel(cx+(1), cy+(3), c);
+        plot_pixel(cx+(2), cy+(3), c);
+        plot_pixel(cx+(-3), cy+(4), c);
+        plot_pixel(cx+(-2), cy+(4), c);
+        plot_pixel(cx+(-1), cy+(4), c);
+        plot_pixel(cx+(0), cy+(4), c);
+        plot_pixel(cx+(1), cy+(4), c);
+        plot_pixel(cx+(2), cy+(4), c);
+        plot_pixel(cx+(-3), cy+(5), c);
+        plot_pixel(cx+(-2), cy+(5), c);
+        plot_pixel(cx+(-1), cy+(5), c);
+        plot_pixel(cx+(-3), cy+(6), c);
+        plot_pixel(cx+(-2), cy+(6), c);
+        plot_pixel(cx+(-1), cy+(6), c);
+        plot_pixel(cx+(-2), cy+(7), c);
+        plot_pixel(cx+(-1), cy+(7), c);
+        plot_pixel(cx+(-1), cy+(8), c);
+        break;
+    }
+
+        default:
         break;
     }
 }
@@ -990,6 +1053,9 @@ int main(void)
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH;
                         toolbar_set_note_type(cur_note_type);
                         update_note_indicator(cur_note_type, cur_accidental); continue;}
+        if (b == KEY_8) { cur_note_type = NOTE_REST;
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type, cur_accidental); continue;}
 
         /* Q: play sequence */
         if (b == KEY_Q) {
@@ -1055,8 +1121,28 @@ int main(void)
         got_extended = 0;
 
         /* ── Space: place ── */
-        if (b == KEY_SPACE)
-            place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+        if (b == KEY_SPACE) {
+            if (cur_note_type == NOTE_REST) {
+                /* Rest always snaps to middle of current staff (slot 5) */
+                int rest_slot = SLOTS_PER_STAFF / 2;
+                int rest_row  = cur_staff * SLOTS_PER_STAFF + rest_slot;
+                int rest_y    = row_to_y(rest_row, 0, 0);
+                place_note(cur_col, cur_staff, rest_slot, cur_x, rest_y, cur_note_type);
+                /* Erase the stray blue cursor cell drawn at rest_y by place_note */
+                {
+                    int ex, ey;
+                    for (ey = rest_y - CELL_H/2; ey <= rest_y + CELL_H/2; ey++)
+                        for (ex = cur_x - CELL_W/2; ex <= cur_x + CELL_W/2; ex++)
+                            if (ex >= 0 && ex < FB_WIDTH && ey >= 0 && ey < FB_HEIGHT)
+                                plot_pixel(ex, ey, bg[ey][ex]);
+                }
+                redraw_all_notes();
+                /* Restore cursor highlight at the actual cursor position */
+                draw_cursor_cell(cur_x, cur_y);
+            } else {
+                place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+            }
+        }
 
         /* ── Backspace: delete ── */
         if (b == KEY_DELETE)

@@ -29,7 +29,7 @@ ToolbarState toolbar_state = {
  
 /* Widths */
 #define BADGE_W_TRANS  30   /* Uniform 30px width for ALL transport buttons */
-#define BADGE_W1       14   
+#define BADGE_W1       11   
 #define BADGE_W_TMP_BTN 14  /* Square +/- buttons */
 #define BADGE_W_TMP_VAL 26  /* Wide enough to hold a 3-digit number */
 #define BADGE_GAP       2   

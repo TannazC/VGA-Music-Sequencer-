@@ -91,7 +91,8 @@ static inline int32_t clamp24(int32_t x)
 #define NOTE_BEAM4_16TH 4
 #define NOTE_BEAM2_16TH 5
 #define NOTE_SINGLE16TH 6
-#define NUM_NOTE_TYPES  7
+#define NOTE_REST       7
+#define NUM_NOTE_TYPES  8
 
 #define ACC_NONE     0
 #define ACC_SHARP    1
@@ -443,8 +444,12 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 int nh      = notes[i].num_heads;
                 int head_s  = (nh > 1) ? (total_s / nh) : total_s;
 
-                osc_init(&osc, freq);
-                play_note_sound(audiop, &osc, head_s);
+                if (notes[i].note_type == NOTE_REST) {
+                    silence(audiop, head_s);
+                } else {
+                    osc_init(&osc, freq);
+                    play_note_sound(audiop, &osc, head_s);
+                }
                 found = 1;
             }
             break; /* one head per note can match a given column */
