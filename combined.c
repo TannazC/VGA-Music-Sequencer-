@@ -194,6 +194,9 @@ void draw_options_menu(void);
 /* Updates the dynamic BPM counter on the toolbar */
 void toolbar_set_bpm(int bpm);
 
+/* Helper to draw strings anywhere on the screen */
+void tb_draw_string(int x, int y, const char *str, short int col);
+
 #endif /* TOOLBAR_H */
 /* =========================================
    End of toolbar.h
@@ -2129,6 +2132,27 @@ void poll_playback_keys(void)
         }
     }
 }
+
+/* =======================================================================
+   Dynamic Current Note Indicator
+   ======================================================================= */
+static void update_note_indicator(int nt) {
+    int x, y;
+
+    /* 1. Draw the static text label */
+    tb_draw_string(10, 224, "CURRENT NOTE", BLACK);
+
+    /* 2. Erase the old note glyph area safely using the bg buffer */
+    for (y = 210; y < FB_HEIGHT; y++) {
+        for (x = 85; x < 180; x++) {
+            plot_pixel(x, y, bg[y][x]);
+        }
+    }
+
+    /* 3. Draw the new note glyph right next to the text */
+    draw_note_glyph(100, 232, nt, BLACK);
+}
+
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
@@ -2161,6 +2185,7 @@ int main(void)
 
     int menu_open = 0;
     draw_bottom_tab();
+    update_note_indicator(cur_note_type);
 
     while (1)
     {
@@ -2181,6 +2206,9 @@ int main(void)
                 build_and_draw_background();
                 draw_toolbar(cur_note_type);
                 draw_bottom_tab();
+                
+                update_note_indicator(cur_note_type);
+
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
@@ -2193,21 +2221,28 @@ int main(void)
         /* Block all other keyboard inputs if the menu is open */
         if (menu_open) continue;
 
-        /* ── 1-7: select note type ── */
+        /* 1-7: select note type */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;
-                        toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_2){cur_note_type = NOTE_HALF;
-                        toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_3){cur_note_type = NOTE_QUARTER;
-                        toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;
-                        toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
-            toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; 
-                        toolbar_set_note_type(cur_note_type); continue; }
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue; }
         if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH;
-                        toolbar_set_note_type(cur_note_type); continue;}
+                        toolbar_set_note_type(cur_note_type);
+                        update_note_indicator(cur_note_type); continue;}
 
         /* Q: play sequence */
         if (b == KEY_Q) {
@@ -2254,7 +2289,7 @@ int main(void)
             toolbar_set_bpm(toolbar_state.bpm + 5);
             continue;
         }
-        
+
         /* ── W/A/S/D: navigate ── */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             int new_col = cur_col;

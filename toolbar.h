@@ -89,4 +89,7 @@ void draw_options_menu(void);
 /* Updates the dynamic BPM counter on the toolbar */
 void toolbar_set_bpm(int bpm);
 
+/* Helper to draw strings anywhere on the screen */
+void tb_draw_string(int x, int y, const char *str, short int col);
+
 #endif /* TOOLBAR_H */
