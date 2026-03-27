@@ -404,6 +404,22 @@ static void draw_stem_segment(int ax, int ay, short int c)
         plot_pixel(ax + STEM_X_OFF, y, c);
 }
 
+/*
+   Draw a vertical stem whose top is explicitly chosen.
+   This is used for multi-head beamed groups where the beam should stay
+   horizontal even if one head is edited lower, which means only that
+   head's stem becomes longer.
+*/
+static void draw_stem_to_top(int ax, int ay, int y_top, short int c)
+{
+    int y0 = (y_top < ay) ? y_top : ay;
+    int y1 = (y_top < ay) ? ay : y_top;
+    int y;
+
+    for (y = y0; y <= y1; y++)
+        plot_pixel(ax + STEM_X_OFF, y, c);
+}
+
 static void beam_segment(int x0, int y0, int x1, int y1, int thick, short int c)
 {
     int x, t;
@@ -447,44 +463,99 @@ static void draw_note_instance(const Note *n, short int c)
         break;
 
     case NOTE_BEAM2_8TH:
-        for (i = 0; i < n->num_heads; i++) {
-            filled_oval(n->head_x[i], n->head_y[i], c);
-            draw_stem_segment(n->head_x[i], n->head_y[i], c);
-        }
-        for (i = 0; i < n->num_heads - 1; i++) {
-            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
-                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+        if (n->num_heads == 2) {
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_segment(n->head_x[i], n->head_y[i], c);
+            }
+            beam_segment(n->head_x[0] + STEM_X_OFF, n->head_y[0] - STEM_HEIGHT,
+                         n->head_x[1] + STEM_X_OFF, n->head_y[1] - STEM_HEIGHT,
                          BEAM_THICK, c);
+        } else {
+            int beam_y = n->head_y[0] - STEM_HEIGHT;
+            for (i = 1; i < n->num_heads; i++) {
+                int top_i = n->head_y[i] - STEM_HEIGHT;
+                if (top_i < beam_y) beam_y = top_i;
+            }
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_to_top(n->head_x[i], n->head_y[i], beam_y, c);
+            }
+            beam_bar(n->head_x[0] + STEM_X_OFF,
+                     n->head_x[n->num_heads - 1] + STEM_X_OFF,
+                     beam_y,
+                     BEAM_THICK,
+                     c);
         }
         break;
 
     case NOTE_BEAM4_16TH:
-        for (i = 0; i < n->num_heads; i++) {
-            filled_oval(n->head_x[i], n->head_y[i], c);
-            draw_stem_segment(n->head_x[i], n->head_y[i], c);
-        }
-        for (i = 0; i < n->num_heads - 1; i++) {
-            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
-                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+        if (n->num_heads == 2) {
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_segment(n->head_x[i], n->head_y[i], c);
+            }
+            beam_segment(n->head_x[0] + STEM_X_OFF, n->head_y[0] - STEM_HEIGHT,
+                         n->head_x[1] + STEM_X_OFF, n->head_y[1] - STEM_HEIGHT,
                          BEAM_THICK, c);
-            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT + BEAM_THICK + 1,
-                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT + BEAM_THICK + 1,
+            beam_segment(n->head_x[0] + STEM_X_OFF, n->head_y[0] - STEM_HEIGHT + BEAM_THICK + 1,
+                         n->head_x[1] + STEM_X_OFF, n->head_y[1] - STEM_HEIGHT + BEAM_THICK + 1,
                          BEAM_THICK, c);
+        } else {
+            int beam_y = n->head_y[0] - STEM_HEIGHT;
+            for (i = 1; i < n->num_heads; i++) {
+                int top_i = n->head_y[i] - STEM_HEIGHT;
+                if (top_i < beam_y) beam_y = top_i;
+            }
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_to_top(n->head_x[i], n->head_y[i], beam_y + BEAM_THICK + 1, c);
+            }
+            beam_bar(n->head_x[0] + STEM_X_OFF,
+                     n->head_x[n->num_heads - 1] + STEM_X_OFF,
+                     beam_y,
+                     BEAM_THICK,
+                     c);
+            beam_bar(n->head_x[0] + STEM_X_OFF,
+                     n->head_x[n->num_heads - 1] + STEM_X_OFF,
+                     beam_y + BEAM_THICK + 1,
+                     BEAM_THICK,
+                     c);
         }
         break;
 
     case NOTE_BEAM2_16TH:
-        for (i = 0; i < n->num_heads; i++) {
-            filled_oval(n->head_x[i], n->head_y[i], c);
-            draw_stem_segment(n->head_x[i], n->head_y[i], c);
-        }
-        for (i = 0; i < n->num_heads - 1; i++) {
-            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT,
-                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT,
+        if (n->num_heads == 2) {
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_segment(n->head_x[i], n->head_y[i], c);
+            }
+            beam_segment(n->head_x[0] + STEM_X_OFF, n->head_y[0] - STEM_HEIGHT,
+                         n->head_x[1] + STEM_X_OFF, n->head_y[1] - STEM_HEIGHT,
                          BEAM_THICK, c);
-            beam_segment(n->head_x[i] + STEM_X_OFF, n->head_y[i] - STEM_HEIGHT + BEAM_THICK + 1,
-                         n->head_x[i + 1] + STEM_X_OFF, n->head_y[i + 1] - STEM_HEIGHT + BEAM_THICK + 1,
+            beam_segment(n->head_x[0] + STEM_X_OFF, n->head_y[0] - STEM_HEIGHT + BEAM_THICK + 1,
+                         n->head_x[1] + STEM_X_OFF, n->head_y[1] - STEM_HEIGHT + BEAM_THICK + 1,
                          BEAM_THICK, c);
+        } else {
+            int beam_y = n->head_y[0] - STEM_HEIGHT;
+            for (i = 1; i < n->num_heads; i++) {
+                int top_i = n->head_y[i] - STEM_HEIGHT;
+                if (top_i < beam_y) beam_y = top_i;
+            }
+            for (i = 0; i < n->num_heads; i++) {
+                filled_oval(n->head_x[i], n->head_y[i], c);
+                draw_stem_to_top(n->head_x[i], n->head_y[i], beam_y + BEAM_THICK + 1, c);
+            }
+            beam_bar(n->head_x[0] + STEM_X_OFF,
+                     n->head_x[n->num_heads - 1] + STEM_X_OFF,
+                     beam_y,
+                     BEAM_THICK,
+                     c);
+            beam_bar(n->head_x[0] + STEM_X_OFF,
+                     n->head_x[n->num_heads - 1] + STEM_X_OFF,
+                     beam_y + BEAM_THICK + 1,
+                     BEAM_THICK,
+                     c);
         }
         break;
 
