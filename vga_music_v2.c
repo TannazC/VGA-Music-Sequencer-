@@ -971,9 +971,9 @@ static const char *accidental_label(int accidental)
 static void update_note_indicator(int nt, int accidental) {
     int x, y;
 
-    /* Clear the entire current-note UI strip before redrawing it. */
+    /* Clear ONLY the left/center of the UI strip so we don't kill the options tab. */
     for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 0; x < FB_WIDTH; x++) {
+        for (x = 0; x < 200; x++) {   /* Stop at 200 instead of FB_WIDTH! */
             plot_pixel(x, y, bg[y][x]);
         }
     }
@@ -1066,10 +1066,16 @@ int main(void)
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                build_and_draw_background();
-                draw_toolbar(cur_note_type);
-                draw_bottom_tab();
-                update_note_indicator(cur_note_type, cur_accidental);
+                
+                /* 1. Safely restore the background ONLY where the menu was */
+                int mx, my;
+                for (my = 50; my <= 190; my++) {
+                    for (mx = 70; mx <= 250; mx++) {
+                        plot_pixel(mx, my, bg[my][mx]);
+                    }
+                }
+                
+                /* 2. Repaint any notes and the cursor that were hiding underneath */
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
@@ -1082,6 +1088,7 @@ int main(void)
         /* ── N: clear all placed notes and reload the staves ── */
         if (b == KEY_N) {
             clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
+            draw_bottom_tab();
             menu_open = 0;
             continue;
         }

@@ -1064,6 +1064,7 @@ void toolbar_set_bpm(int bpm) {
 #include <stdint.h>
 // Skipped local include by merge script: #include "background.h"
 // Skipped local include by merge script: #include "sequencer_audio.h"
+// Skipped local include by merge script: #include "toolbar.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware
@@ -1242,8 +1243,21 @@ static int note_frequency_hz(int slot, int accidental)
    total_samples = duration_64 * SAMPS_PER_64
    ═══════════════════════════════════════════════════════════════════════ */
 #define FS_HZ          8000
-#define QUARTER_SAMPS  4000   /* 120 BPM: 60/120 * 8000 = 4000            */
-#define SAMPS_PER_64   250    /* QUARTER_SAMPS / 16  (one 1/64-note unit)  */
+
+/* Tempo is controlled by toolbar_state.bpm.
+   quarter_samples = FS * 60 / bpm
+   samples_per_64  = quarter_samples / 16 */
+static int quarter_samples_current(void)
+{
+    int bpm = toolbar_state.bpm;
+    if (bpm < 1) bpm = 120;
+    return (FS_HZ * 60) / bpm;
+}
+
+static int samples_per_64_current(void)
+{
+    return quarter_samples_current() / 16;
+}
 
 /*
  * Square-wave amplitude.
@@ -1451,7 +1465,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 Osc osc;
                 int slot    = notes[i].head_pitch_slot[h];
                 int freq    = note_frequency_hz(slot, notes[i].accidental);
-                int total_s = notes[i].duration_64 * SAMPS_PER_64;
+                int total_s = notes[i].duration_64 * samples_per_64_current();
                 int nh      = notes[i].num_heads;
                 int head_s  = (nh > 1) ? (total_s / nh) : total_s;
 
@@ -1470,7 +1484,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
     /* If no note fired this column, fill with silence so the grid
        column still takes up its full quarter-note time slot. */
     if (!found)
-        silence(audiop, QUARTER_SAMPS);
+        silence(audiop, quarter_samples_current());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1568,7 +1582,6 @@ void play_sequence(void)
         }
     } while (restart_seq); /* If R was pressed, loop back to the top! */
 }
-
 /* =========================================
    End of sequencer_audio.c
    ========================================= */
@@ -2255,6 +2268,27 @@ static void erase_note_instance(const Note *n)
 
     if (n->num_heads <= 0) return;
 
+    /*
+       Rests use a custom pixel glyph that extends lower than the usual
+       note-head bounding box. Give them a dedicated erase window so no
+       residue is left behind at the bottom or around the hook.
+    */
+    if (n->note_type == NOTE_REST) {
+        int cx = n->head_x[0];
+        int cy = n->head_y[0];
+
+        min_x = cx - 6;
+        max_x = cx + 5;
+        min_y = cy - 11;
+        max_y = cy + 11;
+
+        for (y = min_y; y <= max_y; y++)
+            for (x = min_x; x <= max_x; x++)
+                if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
+                    plot_pixel(x, y, bg[y][x]);
+        return;
+    }
+
     min_x = n->head_x[0];
     max_x = n->head_x[0];
     min_y = n->head_y[0];
@@ -2528,9 +2562,9 @@ static const char *accidental_label(int accidental)
 static void update_note_indicator(int nt, int accidental) {
     int x, y;
 
-    /* Clear the entire current-note UI strip before redrawing it. */
+    /* Clear ONLY the left/center of the UI strip so we don't kill the options tab. */
     for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 0; x < FB_WIDTH; x++) {
+        for (x = 0; x < 200; x++) {   /* Stop at 200 instead of FB_WIDTH! */
             plot_pixel(x, y, bg[y][x]);
         }
     }
@@ -2623,10 +2657,16 @@ int main(void)
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                build_and_draw_background();
-                draw_toolbar(cur_note_type);
-                draw_bottom_tab();
-                update_note_indicator(cur_note_type, cur_accidental);
+                
+                /* 1. Safely restore the background ONLY where the menu was */
+                int mx, my;
+                for (my = 50; my <= 190; my++) {
+                    for (mx = 70; mx <= 250; mx++) {
+                        plot_pixel(mx, my, bg[my][mx]);
+                    }
+                }
+                
+                /* 2. Repaint any notes and the cursor that were hiding underneath */
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
@@ -2639,6 +2679,7 @@ int main(void)
         /* ── N: clear all placed notes and reload the staves ── */
         if (b == KEY_N) {
             clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
+            draw_bottom_tab();
             menu_open = 0;
             continue;
         }
