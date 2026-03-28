@@ -4,6 +4,7 @@
 #include "background.h"
 #include "sequencer_audio.h"
 #include "sprites.h"
+#include "start_menu.h"
 
 int pixel_buffer_start;
 
@@ -1031,6 +1032,45 @@ int main(void)
     *(pixel_ctrl + 1)  = pixel_buffer_start;
     
     keyboard_init();
+
+    draw_start_screen();
+
+    /* ── Modified Start Screen Input Trap ── */
+    int got_break_start = 0;
+
+    // Loop until user presses Space
+    while (g_start_screen_active) {
+        int raw = ps2_read_byte(ps2);
+        if (raw < 0) continue;
+
+        unsigned char b = (unsigned char)raw;
+        if (b == 0xE0) continue;
+        if (b == KEY_BREAK) { got_break_start = 1; continue; }
+        if (got_break_start) { got_break_start = 0; continue; }
+
+        /* W / S: Navigate up and down */
+        if (b == KEY_W) {
+            g_start_selection = 1;
+            update_start_selection(g_start_selection);
+        }
+        if (b == KEY_S) {
+            g_start_selection = 2;
+            update_start_selection(g_start_selection);
+        }
+
+        /* SPACE: Select option and boot main app */
+        if (b == KEY_SPACE) {
+            if (g_start_selection == 1) {
+                /* CREATE YOUR OWN: Just clear the flag and let the sequencer load normally */
+                g_start_screen_active = 0; 
+            } else {
+                /* PRELOAD SONG: We will add the logic for this later! */
+                g_start_screen_active = 0;
+            }
+        }
+    }
+
+    
     build_and_draw_background();
     draw_toolbar(cur_note_type);
 
@@ -1088,7 +1128,6 @@ int main(void)
         /* ── N: clear all placed notes and reload the staves ── */
         if (b == KEY_N) {
             clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
-            draw_bottom_tab();
             menu_open = 0;
             continue;
         }

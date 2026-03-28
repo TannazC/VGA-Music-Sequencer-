@@ -7,9 +7,11 @@ FILES_TO_COMBINE = [
     "background.h",
     "toolbar.h",
     "sprites.h",
+    "start_menu.h",
     "sequencer_audio.h",
     "background.c",
     "toolbar.c",
+    "start_menu.c",
     "sequencer_audio.c",
     "vga_music_v2.c"
 ]

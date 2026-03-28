@@ -35,6 +35,20 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
+/* =======================================================================
+   Custom Brand Palette (Converted to RGB 5-6-5)
+   ======================================================================= */
+#define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
+
+#define COLOR_SPEARMINT       RGB565(75, 145, 125) 
+#define COLOR_NEON_SPEARMINT  RGB565(87, 200, 160) 
+#define COLOR_FUCHSIA         RGB565(240, 55, 165) 
+#define COLOR_CITRIC          RGB565(205, 245, 100) 
+#define COLOR_MUTED_NEON_BLUE RGB565(69, 185, 220) 
+#define COLOR_WHITE           RGB565(255, 255, 255) 
+#define COLOR_BLACK           RGB565(0, 0, 0)
+
+
 /* ── Toolbar vertical extent (rows 0-25, 26 px) ──────────────────────
    Ensure staff_top[0] in background.h is >= TOOLBAR_BOT + 2.          */
 #define TOOLBAR_TOP   0
