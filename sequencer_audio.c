@@ -53,6 +53,7 @@
 #include <stdint.h>
 #include "background.h"
 #include "sequencer_audio.h"
+#include "toolbar.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware
@@ -231,8 +232,21 @@ static int note_frequency_hz(int slot, int accidental)
    total_samples = duration_64 * SAMPS_PER_64
    ═══════════════════════════════════════════════════════════════════════ */
 #define FS_HZ          8000
-#define QUARTER_SAMPS  4000   /* 120 BPM: 60/120 * 8000 = 4000            */
-#define SAMPS_PER_64   250    /* QUARTER_SAMPS / 16  (one 1/64-note unit)  */
+
+/* Tempo is controlled by toolbar_state.bpm.
+   quarter_samples = FS * 60 / bpm
+   samples_per_64  = quarter_samples / 16 */
+static int quarter_samples_current(void)
+{
+    int bpm = toolbar_state.bpm;
+    if (bpm < 1) bpm = 120;
+    return (FS_HZ * 60) / bpm;
+}
+
+static int samples_per_64_current(void)
+{
+    return quarter_samples_current() / 16;
+}
 
 /*
  * Square-wave amplitude.
@@ -440,7 +454,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 Osc osc;
                 int slot    = notes[i].head_pitch_slot[h];
                 int freq    = note_frequency_hz(slot, notes[i].accidental);
-                int total_s = notes[i].duration_64 * SAMPS_PER_64;
+                int total_s = notes[i].duration_64 * samples_per_64_current();
                 int nh      = notes[i].num_heads;
                 int head_s  = (nh > 1) ? (total_s / nh) : total_s;
 
@@ -459,7 +473,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
     /* If no note fired this column, fill with silence so the grid
        column still takes up its full quarter-note time slot. */
     if (!found)
-        silence(audiop, QUARTER_SAMPS);
+        silence(audiop, quarter_samples_current());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
