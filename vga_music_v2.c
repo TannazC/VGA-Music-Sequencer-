@@ -677,6 +677,27 @@ static void erase_note_instance(const Note *n)
 
     if (n->num_heads <= 0) return;
 
+    /*
+       Rests use a custom pixel glyph that extends lower than the usual
+       note-head bounding box. Give them a dedicated erase window so no
+       residue is left behind at the bottom or around the hook.
+    */
+    if (n->note_type == NOTE_REST) {
+        int cx = n->head_x[0];
+        int cy = n->head_y[0];
+
+        min_x = cx - 6;
+        max_x = cx + 5;
+        min_y = cy - 11;
+        max_y = cy + 11;
+
+        for (y = min_y; y <= max_y; y++)
+            for (x = min_x; x <= max_x; x++)
+                if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
+                    plot_pixel(x, y, bg[y][x]);
+        return;
+    }
+
     min_x = n->head_x[0];
     max_x = n->head_x[0];
     min_y = n->head_y[0];
