@@ -5,6 +5,8 @@ import os
 FILES_TO_COMBINE = [
     "treble_clef_bitmap.h",
     "background.h",
+    "skinny_font.h",
+    "fat_font.h",
     "toolbar.h",
     "sprites.h",
     "start_menu.h",

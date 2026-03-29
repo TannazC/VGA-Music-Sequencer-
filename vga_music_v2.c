@@ -1058,6 +1058,18 @@ int main(void)
             update_start_selection(g_start_selection);
         }
 
+        if (b == KEY_1) {
+            g_start_selection = 1;
+            update_start_selection(g_start_selection);
+             g_start_screen_active = 0; 
+        }
+        if (b == KEY_2) {
+            g_start_selection = 2;
+            update_start_selection(g_start_selection);
+            g_start_screen_active = 0;
+        }
+
+
         /* SPACE: Select option and boot main app */
         if (b == KEY_SPACE) {
             if (g_start_selection == 1) {
