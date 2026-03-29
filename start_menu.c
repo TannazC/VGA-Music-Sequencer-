@@ -196,29 +196,38 @@ static void draw_option(int x, int y, int w, int h, char key, const char *label,
    Draws the broad 240x32 customized 'MUSIC SEQUENCER' logo.
    This asset uses a full 2D array of bytes for a cohesive pre-render.
    ================================================================= */
-static void draw_custom_logo_bitmap(void) {
-    int row, col_byte, bit;
+static void draw_custom_logo_bitmap(double scale) {
+    int tx, ty;
     short int color = COLOR_SPEARMINT; /* Primary theme color */
 
-    /* Centering calculation:
-       (Screen Width - Bitmap Width) / 2
-       (320 - 240) / 2 = 40 pixels offset from the left edge. */
-    int start_x = (SCREEN_W - TITLE_LOGO_W) / 2;
+    /* Calculate exact target dimensions based on the double */
+    int target_w = (int)(TITLE_LOGO_W * scale);
+    int target_h = (int)(TITLE_LOGO_H * scale);
 
-    /* Y coordinate chosen from previous turns (centered and high) */
+    /* Recalculate centering using the new scaled width */
+    int start_x = (SCREEN_W - target_w) / 2;
     int start_y = 40; 
 
-    for (row = 0; row < TITLE_LOGO_H; row++) {
-        for (col_byte = 0; col_byte < TITLE_LOGO_STRIDE; col_byte++) {
-            /* Read one full byte containing 8 pixels of pre-rendered text */
-            unsigned char bits = music_sequencer_bmp[row][col_byte];
-
-            for (bit = 0; bit < 8; bit++) {
-                /* Stride approach: MSB (Most Significant Bit, 0x80)
-                   corresponds to the left-most pixel in the byte. */
+    /* Loop over every pixel in the target destination */
+    for (ty = 0; ty < target_h; ty++) {
+        /* Reverse map to find the source Y coordinate */
+        int src_y = (int)(ty / scale);
+        
+        for (tx = 0; tx < target_w; tx++) {
+            /* Reverse map to find the source X coordinate */
+            int src_x = (int)(tx / scale);
+            
+            /* Translate the X coordinate into our byte/bit layout */
+            int col_byte = src_x / 8;
+            int bit = src_x % 8;
+            
+            /* Bounds check just in case of any floating point rounding quirks */
+            if (src_y < TITLE_LOGO_H && col_byte < TITLE_LOGO_STRIDE) {
+                unsigned char bits = music_sequencer_bmp[src_y][col_byte];
+                
+                /* Read the bit (MSB first) */
                 if (bits & (0x80 >> bit)) {
-                    /* Calculate the target screen coordinate and plot it */
-                    plot_pixel(start_x + col_byte * 8 + bit, start_y + row, color);
+                    plot_pixel(start_x + tx, start_y + ty, color);
                 }
             }
         }
@@ -235,14 +244,16 @@ void draw_start_screen(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, COLOR_PINK_BG);
 
     draw_staff(14); 
+    draw_treble_clef(10, 14 - 6, COLOR_STAFF);
     draw_staff(184);
+    draw_treble_clef(10, 184 - 6, COLOR_STAFF);
 
     /* Text */
     /*draw_string_centered(SCREEN_W / 2, 50, "MUSIC SEQUENCER", 3, COLOR_SPEARMINT);
     draw_string_centered(SCREEN_W / 2, 92, "START", 1, COLOR_BLACK);*/
-    draw_custom_logo_bitmap();
+    draw_custom_logo_bitmap(1.5);
 
-    draw_hline(90, 108, 140, COLOR_SPEARMINT);
+    draw_hline(90, 95, 140, COLOR_SPEARMINT);
 
     /* Draw the initial buttons */
     update_start_selection(g_start_selection);
@@ -250,6 +261,6 @@ void draw_start_screen(void) {
 
 /* Repaints ONLY the buttons, preventing full-screen flicker when navigating */
 void update_start_selection(int active_opt) {
-    draw_option(80, 120, 160, 24, '1', "CREATE YOUR OWN", (active_opt == 1));
-    draw_option(80, 150, 160, 24, '2', "PRELOAD SONG",    (active_opt == 2));
+    draw_option(80, 115, 160, 24, '1', "CREATE YOUR OWN", (active_opt == 1));
+    draw_option(80, 145, 160, 24, '2', "PRELOAD SONG",    (active_opt == 2));
 }

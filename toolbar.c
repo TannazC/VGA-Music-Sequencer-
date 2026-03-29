@@ -1,21 +1,21 @@
 /* =======================================================================
-   toolbar.c  --  Top keyboard-shortcut toolbar  (implementation)
+   toolbar.c  --  Top keyboard-shortcut toolbar (implementation)
+   Optimized for PixelMix (5x7) for maximum legibility.
+   Uses flat-pointer arithmetic to bypass VLA compiler restrictions.
    ======================================================================= */
 
 #include "toolbar.h"
-#include "background.h"    /* FB_WIDTH, FB_HEIGHT */
+#include "background.h"
+#include "skinny_font.h"
 
 /* plot_pixel is defined in main.c */
 extern void plot_pixel(int x, int y, short int c);
 
 /* =======================================================================
-   Global state  (extern in toolbar.h)
+   Global state
    ======================================================================= */
 ToolbarState toolbar_state = {
-    TB_WAVE_SQUARE,   /* waveform */
-    120,              /* bpm      */
-    0,                /* muted    */
-    TB_STATE_STOPPED  /* playback */
+    TB_WAVE_SQUARE, 120, 0, TB_STATE_STOPPED
 };
 
 /* =======================================================================
@@ -25,16 +25,18 @@ ToolbarState toolbar_state = {
 #define BADGE_H        20          
 #define BADGE_Y0       (TOOLBAR_TOP + (BADGE_AREA_H - BADGE_H) / 2)   
 #define BADGE_Y1       (BADGE_Y0 + BADGE_H - 1)                        
-#define FONT_Y0        (BADGE_Y0 + (BADGE_H - 7) / 2)                  
- 
+
+/* Automatically centers the font vertically based on the atlas height */
+#define FONT_Y0        (BADGE_Y0 + (BADGE_H - SKINNY_FONT_HEIGHT) / 2)                  
+#define FONT_ADVANCE   6
+
 /* Widths */
-#define BADGE_W_TRANS  30   /* Uniform 30px width for ALL transport buttons */
-#define BADGE_W1       11   
-#define BADGE_W_TMP_BTN 14  /* Square +/- buttons */
-#define BADGE_W_TMP_VAL 26  /* Wide enough to hold a 3-digit number */
-#define BADGE_GAP       2   
+#define BADGE_W_TRANS   31   
+#define BADGE_W1        12   
+#define BADGE_W_TMP_BTN 12  
+#define BADGE_W_TMP_VAL 28  
+#define BADGE_GAP       2    
 #define GROUP_SEP       8
- 
 
 /* =======================================================================
    Colour palette  (RGB 5-6-5)
@@ -81,64 +83,66 @@ ToolbarState toolbar_state = {
 #define TB_DEL_TXT      COLOR_WHITE
 
 /* =======================================================================
-   5x7 pixel font
+   Unified Rendering Logic (Engineering Grade - No VLAs)
    ======================================================================= */
-static const unsigned char *get_glyph(unsigned char c)
-{
-    static const unsigned char G_0[7]={0x0E,0x11,0x13,0x15,0x19,0x11,0x0E};
-    static const unsigned char G_1[7]={0x04,0x0C,0x04,0x04,0x04,0x04,0x0E};
-    static const unsigned char G_2[7]={0x0E,0x11,0x01,0x02,0x04,0x08,0x1F};
-    static const unsigned char G_3[7]={0x0E,0x11,0x01,0x06,0x01,0x11,0x0E};
-    static const unsigned char G_4[7]={0x02,0x06,0x0A,0x12,0x1F,0x02,0x02};
-    static const unsigned char G_5[7]={0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E};
-    static const unsigned char G_6[7]={0x0E,0x11,0x10,0x1E,0x11,0x11,0x0E};
-    static const unsigned char G_7[7]={0x1F,0x01,0x02,0x04,0x08,0x10,0x10};
-    static const unsigned char G_8[7]={0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E};
-    static const unsigned char G_9[7]={0x0E,0x11,0x11,0x0F,0x01,0x01,0x0E};
-    static const unsigned char G_PLUS[7]={0x00,0x04,0x04,0x1F,0x04,0x04,0x00};
-    static const unsigned char G_MINUS[7]={0x00,0x00,0x00,0x1F,0x00,0x00,0x00};
-    
-    static const unsigned char G_A[7]={0x0E,0x11,0x11,0x1F,0x11,0x11,0x11};
-    static const unsigned char G_B[7]={0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E};
-    static const unsigned char G_C[7]={0x0E,0x11,0x10,0x10,0x10,0x11,0x0E};
-    static const unsigned char G_D[7]={0x1E,0x11,0x11,0x11,0x11,0x11,0x1E};
-    static const unsigned char G_E[7]={0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F};
-    static const unsigned char G_K[7]={0x11,0x12,0x14,0x18,0x14,0x12,0x11};
-    static const unsigned char G_L[7]={0x10,0x10,0x10,0x10,0x10,0x10,0x1F};
-    static const unsigned char G_P[7]={0x1E,0x11,0x11,0x1E,0x10,0x10,0x10};
-    static const unsigned char G_Q[7]={0x0E,0x11,0x11,0x11,0x15,0x13,0x0F};
-    static const unsigned char G_R[7]={0x1E,0x11,0x11,0x1E,0x14,0x12,0x11};
-    static const unsigned char G_S[7]={0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E};
-    static const unsigned char G_T[7]={0x1F,0x04,0x04,0x04,0x04,0x04,0x04};
-    static const unsigned char G_G[7]={0x0E,0x11,0x10,0x17,0x11,0x11,0x0E};
-    static const unsigned char G_I[7]={0x0E,0x04,0x04,0x04,0x04,0x04,0x0E};
-    static const unsigned char G_M[7]={0x11,0x1B,0x15,0x11,0x11,0x11,0x11};
-    static const unsigned char G_N[7]={0x11,0x19,0x15,0x13,0x11,0x11,0x11};
-    static const unsigned char G_O[7]={0x0E,0x11,0x11,0x11,0x11,0x11,0x0E};
-    static const unsigned char G_U[7]={0x11,0x11,0x11,0x11,0x11,0x11,0x0E};
-    static const unsigned char G_H[7]={0x11,0x11,0x11,0x1F,0x11,0x11,0x11};
-    static const unsigned char G_W[7]={0x11,0x11,0x11,0x11,0x15,0x15,0x0A};
-    static const unsigned char G_DASH[7]={0x00,0x00,0x00,0x0E,0x00,0x00,0x00};
-    static const unsigned char G_LBRACKET[7]={0x0E,0x08,0x08,0x08,0x08,0x08,0x0E};
-    static const unsigned char G_RBRACKET[7]={0x0E,0x02,0x02,0x02,0x02,0x02,0x0E};
- 
-    switch(c){
-        case '1': return G_1; case '2': return G_2; case '3': return G_3;
-        case '4': return G_4; case '5': return G_5; case '6': return G_6;
-        case '7': return G_7;
-        case 'A': return G_A; case 'B': return G_B; case 'C': return G_C;
-        case 'D': return G_D; case 'E': return G_E; case 'K': return G_K; 
-        case 'L': return G_L; case 'P': return G_P; case 'Q': return G_Q; 
-        case 'R': return G_R; case 'S': return G_S; case 'T': return G_T;
-        case 'G': return G_G; case 'I': return G_I; case 'M': return G_M;
-        case 'N': return G_N; case 'O': return G_O; case 'U': return G_U;
-        case '[': return G_LBRACKET; case ']': return G_RBRACKET;
-        case 'H': return G_H; case 'W': return G_W; case '-': return G_DASH;
-        case '0': return G_0; case '8': return G_8; case '9': return G_9;
-        case '+': return G_PLUS; 
-        default:  return 0;
+
+/**
+ * Renders a character from a 3D atlas passed as a flat pointer.
+ * Offset math: (char_idx * height * stride) + (row * stride) + byte_col
+ */
+static void draw_atlas_char(int x, int y, int idx, int w, int h, int stride, const unsigned char *ptr, short int col) {
+    for (int r = 0; r < h; r++) {
+        for (int b = 0; b < stride; b++) {
+            int offset = (idx * h * stride) + (r * stride) + b;
+            unsigned char bits = ptr[offset];
+            for (int bit = 0; bit < 8; bit++) {
+                if ((b * 8 + bit) < w) {
+                    if (bits & (0x80 >> bit)) {
+                        plot_pixel(x + (b * 8) + bit, y + r, col);
+                    }
+                }
+            }
+        }
     }
 }
+
+static void tb_draw_char(int x, int y, unsigned char c, short int col) {
+    int idx = get_skinny_font_index(c);
+    const unsigned char *flat_ptr = (const unsigned char *)skinny_font_atlas;
+    draw_atlas_char(x, y, idx, SKINNY_FONT_WIDTH, SKINNY_FONT_HEIGHT, SKINNY_FONT_STRIDE, flat_ptr, col);
+}
+
+/* =======================================================================
+   UI Helpers
+   ======================================================================= */
+static void tb_fill(int x0,int y0,int x1,int y1,short int c) {
+    int x,y; for(y=y0;y<=y1;y++) for(x=x0;x<=x1;x++) plot_pixel(x,y,c);
+}
+static void tb_hline(int x0,int x1,int y,short int c) { int x; for(x=x0;x<=x1;x++) plot_pixel(x,y,c); }
+static void tb_vline(int x,int y0,int y1,short int c) { int y; for(y=y0;y<=y1;y++) plot_pixel(x,y,c); }
+
+static void tb_group_div(int x) { tb_vline(x, TOOLBAR_TOP + 2, BADGE_Y1 - 2, COLOR_BLACK); }
+
+static int tb_badge(int x, int bw, const char *label, short int fill, short int txt) {
+    int llen = 0;
+    for (const char *p = label; *p; p++) llen++;
+
+    /* Centering calculation: nudged +1 pixel to the right for visual balance */
+    int text_w = llen * SKINNY_FONT_WIDTH; 
+    int tx = x + (bw - text_w) / 2 + 3; 
+
+    tb_fill(x + 1, BADGE_Y0 + 1, x + bw - 2, BADGE_Y1 - 1, fill);
+    tb_hline(x, x + bw - 1, BADGE_Y0, COLOR_BLACK); 
+    tb_hline(x, x + bw - 1, BADGE_Y1, COLOR_BLACK);
+    tb_vline(x, BADGE_Y0, BADGE_Y1, COLOR_BLACK); 
+    tb_vline(x + bw - 1, BADGE_Y0, BADGE_Y1, COLOR_BLACK);
+
+    for (const char *p = label; *p; p++, tx += SKINNY_FONT_WIDTH) {
+        tb_draw_char(tx, FONT_Y0, (unsigned char)*p, txt);
+    }
+    return x + bw;
+}
+
 
 /* =======================================================================
    Unified 12x12 Transport Icons (1 = draw, 0 = transparent)
@@ -204,23 +208,6 @@ static const unsigned char ICON_RESTART[12][12] = {
 };
 
 
-/* =======================================================================
-   Low-level pixel helpers
-   ======================================================================= */
-static void tb_fill(int x0,int y0,int x1,int y1,short int c) {
-    int x,y; for(y=y0;y<=y1;y++) for(x=x0;x<=x1;x++) plot_pixel(x,y,c);
-}
-static void tb_hline(int x0,int x1,int y,short int c) { int x; for(x=x0;x<=x1;x++) plot_pixel(x,y,c); }
-static void tb_vline(int x,int y0,int y1,short int c) { int y; for(y=y0;y<=y1;y++) plot_pixel(x,y,c); }
- 
-static void tb_draw_char(int x,int y,unsigned char c,short int col) {
-    int row,bit; const unsigned char *g=get_glyph(c); if(!g) return;
-    for(row=0;row<7;row++){
-        unsigned char bits=g[row];
-        for(bit=4;bit>=0;bit--) if(bits&(1<<bit)) plot_pixel(x+(4-bit),y+row,col);
-    }
-}
-
 /* Draws the unified 12x12 icon grid */
 static void tb_draw_icon_12(int x, int y, const unsigned char icon[12][12], short int col) {
     int row, col_idx; 
@@ -232,40 +219,38 @@ static void tb_draw_icon_12(int x, int y, const unsigned char icon[12][12], shor
         }
     }
 }
- 
-static int tb_badge(int x,int bw,const char *label, short int fill,short int txt) {
-    int llen=0,text_w,tx; const char *p;
-    tb_fill(x+1,BADGE_Y0+1,x+bw-2,BADGE_Y1-1,fill);
-    tb_hline(x,x+bw-1,BADGE_Y0,TB_BORDER); tb_hline(x,x+bw-1,BADGE_Y1,TB_BORDER);
-    tb_vline(x,BADGE_Y0,BADGE_Y1,TB_BORDER); tb_vline(x+bw-1,BADGE_Y0,BADGE_Y1,TB_BORDER);
-    for(p=label;*p;p++) llen++; text_w = llen*6-1; tx = x+(bw-text_w)/2;
-    for(p=label;*p;p++,tx+=6) tb_draw_char(tx,FONT_Y0,(unsigned char)*p,txt);
-    return x+bw;
-}
+
  
 /* Single, unified transport badge for ALL 4 buttons */
 static int tb_transport_badge(int x, const unsigned char icon[12][12], char key_char, 
                               short int fill, short int icon_col, short int key_col) {
     int bw = BADGE_W_TRANS; 
-    int icon_x = x + 3; 
-    int icon_y = BADGE_Y0 + (BADGE_H - 12) / 2; /* Centers the 12x12 icon perfectly */
-    int div_x  = x + 18; 
-    int key_x  = x + 21;
+    int div_x  = x + 19; 
+    
+    // Center the 12x12 icon in the left side (18px wide)
+    int icon_x = x + (18 - 12) / 2; 
+    int icon_y = BADGE_Y0 + (BADGE_H - 12) / 2; 
+    
+    // Center the single char in the right side (14px wide), nudged +1 pixel to the right
+    int key_x  = div_x + ( (x + bw - div_x) - SKINNY_FONT_WIDTH ) / 2 + 1;
 
     tb_fill(x+1, BADGE_Y0+1, x+bw-2, BADGE_Y1-1, fill);
-    tb_hline(x, x+bw-1, BADGE_Y0, TB_BORDER); 
-    tb_hline(x, x+bw-1, BADGE_Y1, TB_BORDER);
-    tb_vline(x, BADGE_Y0, BADGE_Y1, TB_BORDER); 
-    tb_vline(x+bw-1, BADGE_Y0, BADGE_Y1, TB_BORDER);
+    tb_hline(x, x+bw-1, BADGE_Y0, COLOR_BLACK); 
+    tb_hline(x, x+bw-1, BADGE_Y1, COLOR_BLACK);
+    tb_vline(x, BADGE_Y0, BADGE_Y1, COLOR_BLACK); 
+    tb_vline(x+bw-1, BADGE_Y0, BADGE_Y1, COLOR_BLACK);
     
-    tb_draw_icon_12(icon_x, icon_y, icon, icon_col); 
-    tb_vline(div_x, BADGE_Y0+2, BADGE_Y1-2, TB_DIV);
+    for(int r=0; r<12; r++)
+        for(int c=0; c<12; c++)
+            if(icon[r][c]) plot_pixel(icon_x+c, icon_y+r, icon_col);
+
+    tb_vline(div_x, BADGE_Y0 + 2, BADGE_Y1 - 2, COLOR_BLACK);
     tb_draw_char(key_x, FONT_Y0, (unsigned char)key_char, key_col);
     
     return x + bw;
 }
 
-static void tb_group_div(int x) { tb_vline(x,TOOLBAR_TOP+2,BADGE_Y1,TB_DIV); }
+//static void tb_group_div(int x) { tb_vline(x,TOOLBAR_TOP+2,BADGE_Y1,TB_DIV); }
  
 /* =======================================================================
    Internal state saved for partial redraws
@@ -365,7 +350,7 @@ void toolbar_set_playback(int state)
 void tb_draw_string(int x, int y, const char *str, short int col) {
     const char *p;
     int tx = x;
-    for(p = str; *p; p++, tx += 6) {
+    for(p = str; *p; p++, tx += FONT_ADVANCE) {
         if (*p == ' ') continue; /* Skip drawing, just advance X coordinate */
         tb_draw_char(tx, y, (unsigned char)*p, col);
     }
