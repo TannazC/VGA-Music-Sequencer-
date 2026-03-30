@@ -444,6 +444,10 @@ static void beam_segment(int x0, int y0, int x1, int y1, int thick, short int c)
     }
 }
 
+#define UI_SAFE_ZONE 46
+/* Constraints for angled beams */
+#define MAX_BEAM_DELTA  6  /* Maximum vertical tilt for a single beam group */
+
 static void draw_note_instance(const Note *n, short int c)
 {
     int i;
@@ -678,32 +682,28 @@ static void erase_note_instance(const Note *n)
 
     if (n->num_heads <= 0) return;
 
-    /*
-       Rests use a custom pixel glyph that extends lower than the usual
-       note-head bounding box. Give them a dedicated erase window so no
-       residue is left behind at the bottom or around the hook.
-    */
+    /* Handle Rests with their dedicated bounding box */
     if (n->note_type == NOTE_REST) {
         int cx = n->head_x[0];
         int cy = n->head_y[0];
-
-        min_x = cx - 6;
-        max_x = cx + 5;
-        min_y = cy - 11;
-        max_y = cy + 11;
-
-        for (y = min_y; y <= max_y; y++)
-            for (x = min_x; x <= max_x; x++)
+        min_x = cx - 6; max_x = cx + 5;
+        min_y = cy - 11; max_y = cy + 11;
+        for (y = min_y; y <= max_y; y++) {
+            for (x = min_x; x <= max_x; x++) {
                 if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
                     plot_pixel(x, y, bg[y][x]);
+            }
+        }
         return;
     }
 
+    /* Start with the first head */
     min_x = n->head_x[0];
     max_x = n->head_x[0];
     min_y = n->head_y[0];
     max_y = n->head_y[0];
 
+    /* Expand the box to include all heads */
     for (i = 1; i < n->num_heads; i++) {
         if (n->head_x[i] < min_x) min_x = n->head_x[i];
         if (n->head_x[i] > max_x) max_x = n->head_x[i];
@@ -711,19 +711,26 @@ static void erase_note_instance(const Note *n)
         if (n->head_y[i] > max_y) max_y = n->head_y[i];
     }
 
-    x = min_x - STEP_W;
-    min_x = x;
-    x = max_x + OVAL_W/2 + STEM_X_OFF + FLAG_LEN + 4;
-    max_x = x;
-    y = min_y - STEM_HEIGHT - 8;
-    min_y = y;
-    y = max_y + OVAL_H/2 + 4;
-    max_y = y;
+    /* Padding for Accidentals (Left) and Stems/Beams (Top) */
+    /* We subtract MAX_BEAM_DELTA + MIN_STEM_HEIGHT + padding from min_y 
+       to ensure we catch the highest possible angled beam. */
+    int top_clearance = STEM_HEIGHT + MAX_BEAM_DELTA + 5;
+    
+    min_x = min_x - 12; /* Space for accidentals */
+    max_x = max_x + 8;  /* Space for stems/flags */
+    min_y = min_y - top_clearance;
+    max_y = max_y + 6;  /* Bottom of the oval */
 
-    for (y = min_y; y <= max_y; y++)
-        for (x = min_x; x <= max_x; x++)
-            if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
-                plot_pixel(x, y, bg[y][x]);
+    for (y = min_y; y <= max_y; y++) {
+        for (x = min_x; x <= max_x; x++) {
+            if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+                /* Optimization: Only clear pixels that are actually inside the staff area */
+                if (y >= UI_SAFE_ZONE) {
+                    plot_pixel(x, y, bg[y][x]);
+                }
+            }
+        }
+    }
 }
 
 static void redraw_all_notes(void)
