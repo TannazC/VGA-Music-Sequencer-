@@ -113,4 +113,7 @@ void update_note_indicator(int nt, int accidental, int cur_p, int max_p);
 /* Helper to draw strings using the skinny font atlas */
 void tb_draw_string(int x, int y, const char *str, short int col);
 
+ /* Redraws the bottom-right "M: OPTIONS" tab to ensure it stays visible */
+void draw_bottom_tab(void);
+
 #endif /* TOOLBAR_H */

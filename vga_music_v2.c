@@ -975,6 +975,28 @@ static const char *accidental_label(int accidental)
     if (accidental == ACC_NATURAL) return "ACC: natural";
     return "ACC: off";
 }
+void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
+{
+    Note mini;
+    int i;
+    int MINI_STEP = 12;   /* Increased from 6 to 9 to prevent the "bus" look */
+    int MINI_STEM = 8;   /* Slightly longer stem for better proportions */
+
+    mini.note_type = nt;
+    mini.accidental = accidental;
+    mini.num_heads = note_num_heads[nt];
+    
+    mini.head_x[0] = cx; /* Adjusted to align with the "CURRENT:" text */
+    mini.head_y[0] = cy;
+
+    for (i = 1; i < mini.num_heads; i++) {
+        mini.head_x[i] = mini.head_x[0] + i * MINI_STEP;
+        mini.head_y[i] = cy;
+    }
+
+    /* We use a horizontal beam for the preview to keep it clean */
+    draw_note_instance(&mini, c); 
+}
 
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p) {
     int x, y;
@@ -986,13 +1008,13 @@ void update_note_indicator(int nt, int accidental, int cur_p, int max_p) {
     }
 
     /* 2. Draw "CURRENT NOTE:" label */
-    tb_draw_string(10, 222, "CURRENT NOTE:", COLOR_BLACK);
+    tb_draw_string(5, 225, "CURRENT NOTE:", COLOR_BLACK);
     
     /* 3. Draw note glyph (handled in main.c or specialized function) */
-    draw_note_glyph(108, 226, nt, (nt == NOTE_REST) ? 0 : accidental, COLOR_BLACK);
-
+    draw_mini_note_glyph(90, 228, nt, (nt == NOTE_REST) ? 0 : accidental, COLOR_BLACK); // Smaller glyph for the indicator
     /* 4. Update the page indicator in the same strip */
     draw_page_indicator(cur_p, max_p);
+    draw_bottom_tab(); // Redraw the bottom toolbar to ensure it stays visible
 }
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
@@ -1068,6 +1090,7 @@ int main(void)
     /* These live at the bottom now */
     update_note_indicator(cur_note_type, cur_accidental, 1, 1);
     draw_page_indicator(1, 1);
+    draw_bottom_tab();
 
     int cur_col   = 2;   /* cols 0-1 overlap treble clef; start at 2 */
     int cur_row   = 0;

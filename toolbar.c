@@ -261,8 +261,8 @@ void draw_toolbar_row2(int cur_accidental) {
     }
     
     x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
-    x = tb_badge_at(x, ROW2_Y, 46, "N: CLR", COLOR_MUTED_NEON_BLUE, COLOR_WHITE) + BADGE_GAP;
-    x = tb_badge_at(x, ROW2_Y, 46, "M: OPT", COLOR_SPEARMINT, COLOR_WHITE);
+    /* Only the Clear action remains here now */
+    tb_badge_at(x, ROW2_Y, 46, "N: CLR", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
 }
 
 /* =======================================================================
@@ -279,16 +279,35 @@ void tb_draw_string(int x, int y, const char *str, short int col) {
 }
 
 void draw_page_indicator(int cur_page, int max_pages) {
-    int y = FB_HEIGHT - 18;
+    int y = FB_HEIGHT - 16;
     char page_str[9];
     page_str[0] = 'P'; page_str[1] = 'A'; page_str[2] = 'G'; page_str[3] = 'E'; page_str[4] = ' ';
-    page_str[5] = '0' + cur_page; page_str[6] = '/'; page_str[7] = '0' + max_pages; page_str[8] = '\0';
+    page_str[5] = '0' + (char)cur_page; page_str[6] = '/'; page_str[7] = '0' + (char)max_pages; page_str[8] = '\0';
     
     int page_w = 8 * FONT_ADVANCE;
-    int cx = FB_WIDTH - page_w - 20; 
-    /* Wipe area with staff background pink color (0xFDF3F6) */
-    tb_fill(cx, y - 2, cx + page_w + 5, y + 10, (short int)0xFDF3F6); 
+    /* Logic to center the text exactly in the middle of the screen */
+    int cx = (FB_WIDTH - page_w) / 2; 
+
     tb_draw_string(cx, y, page_str, COLOR_BLACK);
+}
+
+/* Restored bottom-right tab for the Options menu */
+void draw_bottom_tab(void) {
+    int w = 78;
+    int h = 13;
+    int x = FB_WIDTH - w - 8;
+    int y = FB_HEIGHT - h - 6;
+
+    /* Use the standard toolbar background color */
+    tb_fill(x, y, x + w, y + h, TB_BG);
+    
+    /* Draw border using our 1px outline helper */
+    tb_hline(x, x + w, y, COLOR_BLACK);
+    tb_hline(x, x + w, y + h, COLOR_BLACK);
+    tb_vline(x, y, y + h, COLOR_BLACK);
+    tb_vline(x + w, y, y + h, COLOR_BLACK);
+
+    tb_draw_string(x + 6, y + 3, "[M] OPTIONS", COLOR_BLACK);
 }
 
 static void menu_draw_row(int y, const char *label, const char *key, short int fill, short int txt, int selected) {
@@ -347,3 +366,4 @@ void toolbar_set_note_type(int cur_note_type) {
         tb_badge(note_badge_x(i), BADGE_W1, label, fill, txt);
     }
 }
+
