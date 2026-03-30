@@ -247,9 +247,9 @@ void draw_start_screen(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, COLOR_PINK_BG);
 
     draw_staff(14); 
-    draw_treble_clef(10, 14 - 6);
+    draw_treble_clef(10, 14 - 6, COLOR_STAFF);
     draw_staff(184);
-    draw_treble_clef(10, 184 - 6);
+    draw_treble_clef(10, 184 - 6, COLOR_STAFF);
 
     /* Text */
     /*draw_string_centered(SCREEN_W / 2, 50, "MUSIC SEQUENCER", 3, COLOR_SPEARMINT);

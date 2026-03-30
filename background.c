@@ -167,7 +167,7 @@ static void draw_barlines(void)
    Note:
      bg_plot handles bounds checking, so no need here
    ═══════════════════════════════════════════════════════════════════════ */
-void draw_treble_clef(int x0, int y0)
+void draw_treble_clef(int x0, int y0, short int color)
 {
     int row, col;
 
@@ -179,7 +179,7 @@ void draw_treble_clef(int x0, int y0)
 
             /* Check if this bit is set (pixel should be drawn) */
             if (bits & (1 << (CLEF_BMP_W - 1 - col)))
-                bg_plot(x0 + col, y0 + row, NOTE_GREEN);
+                bg_plot(x0 + col, y0 + row, color);
         }
     }
 }
@@ -238,7 +238,8 @@ void build_and_draw_background(void)
        spiral aligns with the correct pitch reference */
     for (s = 0; s < NUM_STAVES; s++)
         draw_treble_clef(STAFF_X0 + 1,
-                         staff_top[s] - STAFF_SPACING);
+                         staff_top[s] - STAFF_SPACING,
+                         NOTE_GREEN);
 
     /* ── Step 6: flush PS/2 FIFO ─────────────────────────────────────────
        Why this matters:
