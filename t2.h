@@ -35,10 +35,8 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
-/* -- Shared colour palette (RGB 5-6-5) -- */
-#ifndef RGB565
+/* ── Shared colour palette (RGB 5-6-5) — used by toolbar, start_menu, etc. ── */
 #define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
-#endif
 
 #define COLOR_SPEARMINT       RGB565( 75, 145, 125)
 #define COLOR_NEON_SPEARMINT  RGB565( 87, 200, 160)
@@ -47,24 +45,26 @@
 #define COLOR_MUTED_NEON_BLUE RGB565( 69, 185, 220)
 #define COLOR_WHITE           RGB565(255, 255, 255)
 #define COLOR_BLACK           RGB565(  0,   0,   0)
-#define COLOR_GRAY            RGB565(100, 100, 100)
 
-/* -- Toolbar vertical extent -- 
-   In Compact 2-Row mode, each row is 22px tall. Total = 44px. */
+/* ── Toolbar vertical extent (rows 0-25, 26 px) ──────────────────────
+   Ensure staff_top[0] in background.h is >= TOOLBAR_BOT + 2.          */
 #define TOOLBAR_TOP   0
-#define TOOLBAR_BOT   43
+#define TOOLBAR_BOT  25
 
-/* -- Instrument constants -- */
-#define TB_INST_BEEP         0 
-#define TB_INST_PIANO        1 
-#define TB_INST_PIANO_REVERB 2 
+/* ── Instrument constants (read by sequencer_audio.c) ──────────────── */
+#define TB_INST_BEEP         0   /* original square-wave synth          */
+#define TB_INST_PIANO        1   /* sampled piano (pitch-shifted)        */
+#define TB_INST_PIANO_REVERB 2   /* sampled piano + reverb               */
 
-/* -- Playback state -- */
+/* Legacy aliases kept for any code that references TB_WAVE_SQUARE */
+#define TB_WAVE_SQUARE    TB_INST_BEEP
+
+/* ── Playback state (written by play_sequence / main loop) ─────────── */
 #define TB_STATE_STOPPED  0
 #define TB_STATE_PLAYING  1
 #define TB_STATE_PAUSED   2
 
-/* -- Note type count -- */
+/* ── Note type count exported (toolbar only shows 5) ───────────────── */
 #define TB_NUM_NOTE_TYPES  8
 
 /* -- Menu geometry -- */
@@ -73,44 +73,47 @@
 #define MENU_X1  250
 #define MENU_Y1  200
 
-/* -- Global toolbar state -- */
+/* ── Global toolbar state ────────────────────────────────────────────
+   Defined in toolbar.c; shared via extern with sequencer_audio.c.     */
 typedef struct {
-    int instrument; /* TB_INST_BEEP / _PIANO / _PIANO_REVERB */
-    int bpm;        /* beats per minute (default 120) */
-    int muted;      /* 0 = sound on, 1 = silent */
-    int playback;   /* TB_STATE_STOPPED / _PLAYING / _PAUSED */
+    int instrument; /* TB_INST_BEEP / _PIANO / _PIANO_REVERB             */
+    int bpm;        /* beats per minute (default 120)                   */
+    int muted;      /* 0 = sound on, 1 = silent                         */
+    int playback;   /* TB_STATE_STOPPED / _PLAYING / _PAUSED            */
 } ToolbarState;
 
 extern ToolbarState toolbar_state;
 
-/* Draws Row 1: Transport [Q E T R], Note Selection [1-8], and Tempo [- 120 +] */
+/* ── Public API ─────────────────────────────────────────────────────── */
+
+/* Full first-time draw. Call once after build_and_draw_background().
+   cur_note_type : 0 (whole) .. 4 (16th)                               */
 void draw_toolbar(int cur_note_type);
 
-/* Draws Row 2: Accidentals [Z X C V], Clear [N], and Options [M] */
-void draw_toolbar_row2(int cur_accidental);
-
-/* Updates only the 8 note-type badges in Row 1 */
+/* Repaints only the 5 note-type badges. Call when user presses 1-5.   */
 void toolbar_set_note_type(int cur_note_type);
 
-/* Updates the transport button highlights to reflect playback state */
+/* Updates the transport button highlights to reflect playback state.   */
 void toolbar_set_playback(int state);
 
-/* Updates the dynamic BPM counter on Row 1 */
-void toolbar_set_bpm(int bpm);
+/* Called by play_sequence() each column to advance the progress bar.
+   step: 0 .. 13  (column index relative to FIRST_COL = 2)            */
+void toolbar_update_step(int step);
 
-/* Highlights the currently selected instrument inside the pop-up menu */
-void toolbar_set_instrument(int inst);
+/* Draws the static [M] OPTIONS tab at the bottom of the screen */
+void draw_bottom_tab(void);
 
-/* Draws the centered instrument-selection pop-up menu */
+/* Draws the instrument-selection pop-up menu */
 void draw_options_menu(void);
 
-/* Draws the page count (e.g., "PAGE 1/1") at the bottom right */
-void draw_page_indicator(int cur_page, int max_pages);
+/* Highlights the currently selected instrument inside the open menu.
+   inst: TB_INST_BEEP / TB_INST_PIANO / TB_INST_PIANO_REVERB           */
+void toolbar_set_instrument(int inst);
 
-/* Clears the bottom area and redrafts the "CURRENT NOTE" glyph and page indicator */
-void update_note_indicator(int nt, int accidental, int cur_p, int max_p);
+/* Updates the dynamic BPM counter on the toolbar */
+void toolbar_set_bpm(int bpm);
 
-/* Helper to draw strings using the skinny font atlas */
+/* Helper to draw strings anywhere on the screen */
 void tb_draw_string(int x, int y, const char *str, short int col);
 
 #endif /* TOOLBAR_H */
