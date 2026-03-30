@@ -1092,10 +1092,16 @@ int main(void)
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                build_and_draw_background();
-                draw_toolbar(cur_note_type);
-                draw_bottom_tab();
-                update_note_indicator(cur_note_type, cur_accidental);
+                
+                /* 1. Safely restore the background ONLY where the menu was */
+                int mx, my;
+                for (my = 50; my <= 190; my++) {
+                    for (mx = 70; mx <= 250; mx++) {
+                        plot_pixel(mx, my, bg[my][mx]);
+                    }
+                }
+                
+                /* 2. Repaint any notes and the cursor that were hiding underneath */
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
