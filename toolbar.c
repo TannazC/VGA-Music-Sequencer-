@@ -15,7 +15,10 @@ extern void plot_pixel(int x, int y, short int c);
    Global state
    ======================================================================= */
 ToolbarState toolbar_state = {
-    TB_WAVE_SQUARE, 120, 0, TB_STATE_STOPPED
+    TB_INST_BEEP,     /* instrument */
+    120,              /* bpm        */
+    0,                /* muted      */
+    TB_STATE_STOPPED  /* playback   */
 };
 
 /* =======================================================================
@@ -372,25 +375,54 @@ void draw_bottom_tab(void) {
     tb_draw_string(x + 5, y + 4, "[M] OPTIONS", TB_BORDER);
 }
 
-/* Draws a large pop-up menu in the center of the screen */
+/* ── Menu geometry ── */
+#define MENU_X0   70
+#define MENU_Y0   50
+#define MENU_X1  250
+#define MENU_Y1  190
+
+#define MENU_ROW_BEEP   (MENU_Y0 + 45)
+#define MENU_ROW_PIANO  (MENU_Y0 + 70)
+#define MENU_ROW_PREV   (MENU_Y0 + 95)
+
+static void menu_draw_row(int y, const char *label, const char *key,
+                           short int fill, short int txt, int selected)
+{
+    int bx = MENU_X0 + 10;
+    if (selected) {
+        tb_fill(bx, y - 2, bx + 9, y + 9, fill);
+    } else {
+        tb_fill(bx, y - 2, bx + 9, y + 9, TB_BG);
+        tb_hline(bx, bx + 9, y - 2, TB_BORDER);
+        tb_hline(bx, bx + 9, y + 9, TB_BORDER);
+        tb_vline(bx, y - 2, y + 9, TB_BORDER);
+        tb_vline(bx + 9, y - 2, y + 9, TB_BORDER);
+    }
+    tb_draw_string(bx + 2, y, key, selected ? txt : TB_BORDER);
+    tb_draw_string(bx + 14, y, label, selected ? fill : TB_NOTE_TXT);
+}
+
 void draw_options_menu(void) {
-    int x0 = 70, y0 = 50, x1 = 250, y1 = 190;
-    
-    /* Draw shadow/border and inner background */
-    tb_fill(x0, y0, x1, y1, TB_BORDER);
-    tb_fill(x0+2, y0+2, x1-2, y1-2, TB_BG);
-    
-    /* Menu Title */
-    tb_draw_string(x0 + 55, y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
-    tb_hline(x0+10, x1-10, y0 + 22, TB_DIV);
-    
-    /* Dummy Options */
-    tb_draw_string(x0 + 20, y0 + 40, "1 - TEMPO UP", TB_NOTE_TXT);
-    tb_draw_string(x0 + 20, y0 + 60, "2 - TEMPO DOWN", TB_NOTE_TXT);
-    tb_draw_string(x0 + 20, y0 + 80, "3 - CHANGE INSTRUMENT", TB_NOTE_TXT);
-    
-    /* Footer */
-    tb_draw_string(x0 + 45, y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, TB_BORDER);
+    tb_fill(MENU_X0+2, MENU_Y0+2, MENU_X1-2, MENU_Y1-2, TB_BG);
+
+    tb_draw_string(MENU_X0 + 40, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PAUSE_FILL);
+    tb_hline(MENU_X0+10, MENU_X1-10, MENU_Y0 + 22, TB_DIV);
+    tb_draw_string(MENU_X0 + 24, MENU_Y0 + 32, "KEY  INSTRUMENT", TB_STOP_FILL);
+
+    int inst = toolbar_state.instrument;
+    menu_draw_row(MENU_ROW_BEEP,  "BEEP",         "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    menu_draw_row(MENU_ROW_PIANO, "PIANO",        "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    menu_draw_row(MENU_ROW_PREV,  "PIANO+REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
+
+    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "M - CLOSE  N - CLEAR", TB_STOP_FILL);
+}
+
+void toolbar_set_instrument(int inst) {
+    toolbar_state.instrument = inst;
+    menu_draw_row(MENU_ROW_BEEP,  "BEEP",         "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    menu_draw_row(MENU_ROW_PIANO, "PIANO",        "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    menu_draw_row(MENU_ROW_PREV,  "PIANO+REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
 }
 
 /* =======================================================================

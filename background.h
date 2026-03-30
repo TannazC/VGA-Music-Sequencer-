@@ -24,5 +24,6 @@ extern short int bg[FB_HEIGHT][FB_WIDTH]; //precomputed background array, read b
 /* Build bg[][] procedurally and blit to frame buffer. Call once at
    startup after pixel_buffer_start is set.                              */
 void build_and_draw_background(void);
+void draw_treble_clef(int x0, int y0);
 
 #endif

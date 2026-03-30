@@ -54,6 +54,7 @@
 #include "background.h"
 #include "sequencer_audio.h"
 #include "toolbar.h"
+#include "piano_samples.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware
@@ -418,6 +419,87 @@ static void silence(volatile audio_t *audiop, int num_samples)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Piano sample helpers
+   ─────────────────────────────────────────────────────────────────────
+   Streams a pre-computed int16 sample array into the audio FIFO.
+   If the sample is shorter than num_samples we loop it (for long notes);
+   if longer we truncate.  Amplitude is scaled to 24-bit signed range.
+
+   The sample arrays are generated at 8 kHz to match FS_HZ, so no
+   further resampling is needed here.  Pitch accuracy is determined by
+   the pitch-shifting done at compile time in piano_samples.h.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+static void play_piano_buf(volatile audio_t *audiop,
+                           const int16_t *buf, int buf_len,
+                           int num_samples)
+{
+    int t;
+    for (t = 0; t < num_samples; t++) {
+        int32_t s;
+        if (buf_len > 0) {
+            /* Loop the sample if note duration exceeds sample length */
+            int idx = t % buf_len;
+            /* int16 range: -32768..32767
+               Beep uses SQ_AMP = 0x600000 (75% of 24-bit full scale = 8388607).
+               Scale: s = sample * 0x600000 / 32768
+                        = sample * 192   (exact integer multiply, no overflow risk:
+                          32767 * 192 = 6,291,264 fits easily in int32_t)        */
+            s = (int32_t)buf[idx] * 1024; // changed 2 be louder, prev was 192
+            s = clamp24(s);
+        } else {
+            s = 0;
+        }
+        while (audiop->wsrc == 0 || audiop->wslc == 0)
+            ;
+        audiop->ldata = (uint32_t)s;
+        audiop->rdata = (uint32_t)s;
+    }
+}
+
+/*
+ * get_piano_buf — select the right sample array for a given slot+accidental.
+ * Sets *out_buf and *out_len.  Uses reverb tables when reverb=1.
+ */
+static void get_piano_buf(int slot, int accidental, int reverb,
+                           const int16_t **out_buf, int *out_len)
+{
+    if (slot < 0 || slot >= 11) { *out_buf = 0; *out_len = 0; return; }
+
+    if (reverb) {
+        switch (accidental) {
+        case ACC_SHARP:
+            *out_buf = piano_rev_sharp_table[slot];
+            *out_len = piano_rev_sharp_len_table[slot];
+            break;
+        case ACC_FLAT:
+            *out_buf = piano_rev_flat_table[slot];
+            *out_len = piano_rev_flat_len_table[slot];
+            break;
+        default:
+            *out_buf = piano_rev_nat_table[slot];
+            *out_len = piano_rev_nat_len_table[slot];
+            break;
+        }
+    } else {
+        switch (accidental) {
+        case ACC_SHARP:
+            *out_buf = piano_sharp_table[slot];
+            *out_len = piano_sharp_len_table[slot];
+            break;
+        case ACC_FLAT:
+            *out_buf = piano_flat_table[slot];
+            *out_len = piano_flat_len_table[slot];
+            break;
+        default:
+            *out_buf = piano_nat_table[slot];
+            *out_len = piano_nat_len_table[slot];
+            break;
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    play_column
    ─────────────────────────────────────────────────────────────────────
    Sound every note-head whose head_step[h] == col on staff s.
@@ -443,6 +525,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
 {
     int i, h;
     int found = 0;
+    int inst = toolbar_state.instrument;  /* TB_INST_BEEP / _PIANO / _PIANO_REVERB */
 
     for (i = 0; i < num_notes; i++) {
         if (notes[i].staff != s) continue;
@@ -451,18 +534,27 @@ static void play_column(volatile audio_t *audiop, int col, int s)
             if (notes[i].head_step[h] != col) continue;
 
             {
-                Osc osc;
                 int slot    = notes[i].head_pitch_slot[h];
-                int freq    = note_frequency_hz(slot, notes[i].accidental);
                 int total_s = notes[i].duration_64 * samples_per_64_current();
                 int nh      = notes[i].num_heads;
                 int head_s  = (nh > 1) ? (total_s / nh) : total_s;
 
                 if (notes[i].note_type == NOTE_REST) {
                     silence(audiop, head_s);
-                } else {
+                } else if (inst == TB_INST_BEEP) {
+                    /* ── Original square-wave synthesiser ── */
+                    Osc osc;
+                    int freq = note_frequency_hz(slot, notes[i].accidental);
                     osc_init(&osc, freq);
                     play_note_sound(audiop, &osc, head_s);
+                } else {
+                    /* ── Sampled piano (with or without reverb) ── */
+                    const int16_t *buf;
+                    int            buf_len;
+                    int reverb = (inst == TB_INST_PIANO_REVERB) ? 1 : 0;
+                    get_piano_buf(slot, notes[i].accidental, reverb,
+                                  &buf, &buf_len);
+                    play_piano_buf(audiop, buf, buf_len, head_s);
                 }
                 found = 1;
             }

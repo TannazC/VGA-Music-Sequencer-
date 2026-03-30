@@ -4,17 +4,20 @@
 
 #include "start_menu.h"
 #include "toolbar.h"
+#include "background.h"
+
+/* plot_pixel is defined in vga_music_v2.c; declare it here */
+extern void plot_pixel(int x, int y, short int c);
 
 volatile int g_start_screen_active = 0;
 int g_start_selection = 1;
 
 /* -------------------------------------------------------
-   Colour palette  (RGB 5-6-5)
+   Colour palette  (RGB 5-6-5)  — additional colours local to the start screen
    ------------------------------------------------------- */
 #define COLOR_PINK_BG         RGB565(244, 184, 206)
 #define COLOR_STAFF           RGB565(210, 155, 178)
 #define COLOR_SPEARMINT_DARK  RGB565( 50, 105,  90)
-#define COLOR_WHITE           RGB565(255, 255, 255)
 #define COLOR_GRAY            RGB565(150, 150, 150)
 #define COLOR_LIGHT_GRAY      RGB565(215, 205, 210)
 #define COLOR_DIM_TEXT        RGB565(160, 140, 150)
@@ -244,9 +247,9 @@ void draw_start_screen(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, COLOR_PINK_BG);
 
     draw_staff(14); 
-    draw_treble_clef(10, 14 - 6, COLOR_STAFF);
+    draw_treble_clef(10, 14 - 6);
     draw_staff(184);
-    draw_treble_clef(10, 184 - 6, COLOR_STAFF);
+    draw_treble_clef(10, 184 - 6);
 
     /* Text */
     /*draw_string_centered(SCREEN_W / 2, 50, "MUSIC SEQUENCER", 3, COLOR_SPEARMINT);

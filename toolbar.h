@@ -35,29 +35,29 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
-/* =======================================================================
-   Custom Brand Palette (Converted to RGB 5-6-5)
-   ======================================================================= */
+/* ── Shared colour palette (RGB 5-6-5) — used by toolbar, start_menu, etc. ── */
 #define RGB565(r, g, b)  ((short int)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)))
 
-#define COLOR_SPEARMINT       RGB565(75, 145, 125) 
-#define COLOR_NEON_SPEARMINT  RGB565(87, 200, 160) 
-#define COLOR_FUCHSIA         RGB565(240, 55, 165) 
-#define COLOR_CITRIC          RGB565(205, 245, 100) 
-#define COLOR_MUTED_NEON_BLUE RGB565(69, 185, 220) 
-#define COLOR_WHITE           RGB565(255, 255, 255) 
-#define COLOR_BLACK           RGB565(0, 0, 0)
-
+#define COLOR_SPEARMINT       RGB565( 75, 145, 125)
+#define COLOR_NEON_SPEARMINT  RGB565( 87, 200, 160)
+#define COLOR_FUCHSIA         RGB565(240,  55, 165)
+#define COLOR_CITRIC          RGB565(205, 245, 100)
+#define COLOR_MUTED_NEON_BLUE RGB565( 69, 185, 220)
+#define COLOR_WHITE           RGB565(255, 255, 255)
+#define COLOR_BLACK           RGB565(  0,   0,   0)
 
 /* ── Toolbar vertical extent (rows 0-25, 26 px) ──────────────────────
    Ensure staff_top[0] in background.h is >= TOOLBAR_BOT + 2.          */
 #define TOOLBAR_TOP   0
 #define TOOLBAR_BOT  25
 
-/* ── Waveform constants (read by osc_tick in sequencer_audio.c) ────── */
-#define TB_WAVE_SQUARE    0
-#define TB_WAVE_PULSE     1
-#define TB_WAVE_TRIANGLE  2
+/* ── Instrument constants (read by sequencer_audio.c) ──────────────── */
+#define TB_INST_BEEP         0   /* original square-wave synth          */
+#define TB_INST_PIANO        1   /* sampled piano (pitch-shifted)        */
+#define TB_INST_PIANO_REVERB 2   /* sampled piano + reverb               */
+
+/* Legacy aliases kept for any code that references TB_WAVE_SQUARE */
+#define TB_WAVE_SQUARE    TB_INST_BEEP
 
 /* ── Playback state (written by play_sequence / main loop) ─────────── */
 #define TB_STATE_STOPPED  0
@@ -70,7 +70,7 @@
 /* ── Global toolbar state ────────────────────────────────────────────
    Defined in toolbar.c; shared via extern with sequencer_audio.c.     */
 typedef struct {
-    int waveform;   /* TB_WAVE_SQUARE / _PULSE / _TRIANGLE              */
+    int instrument; /* TB_INST_BEEP / _PIANO / _PIANO_REVERB             */
     int bpm;        /* beats per minute (default 120)                   */
     int muted;      /* 0 = sound on, 1 = silent                         */
     int playback;   /* TB_STATE_STOPPED / _PLAYING / _PAUSED            */
@@ -97,8 +97,12 @@ void toolbar_update_step(int step);
 /* Draws the static [M] OPTIONS tab at the bottom of the screen */
 void draw_bottom_tab(void);
 
-/* Draws the static pop-up menu in the center of the screen */
+/* Draws the instrument-selection pop-up menu */
 void draw_options_menu(void);
+
+/* Highlights the currently selected instrument inside the open menu.
+   inst: TB_INST_BEEP / TB_INST_PIANO / TB_INST_PIANO_REVERB           */
+void toolbar_set_instrument(int inst);
 
 /* Updates the dynamic BPM counter on the toolbar */
 void toolbar_set_bpm(int bpm);

@@ -972,9 +972,9 @@ static const char *accidental_label(int accidental)
 static void update_note_indicator(int nt, int accidental) {
     int x, y;
 
-    /* Clear ONLY the left/center of the UI strip so we don't kill the options tab. */
+    /* Clear the entire current-note UI strip before redrawing it. */
     for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 0; x < 200; x++) {   /* Stop at 200 instead of FB_WIDTH! */
+        for (x = 0; x < FB_WIDTH; x++) {
             plot_pixel(x, y, bg[y][x]);
         }
     }
@@ -983,6 +983,9 @@ static void update_note_indicator(int nt, int accidental) {
     tb_draw_string(10, 222, "CURRENT NOTE:", BLACK);
     /* Glyph sits right after the label: 14 chars * 6px + 10 offset + 8 gap */
     draw_note_glyph(108, 226, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
+
+    /* Redraw [M] OPTIONS tab — lives in this strip, gets wiped by the clear above */
+    draw_bottom_tab();
 }
 
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
@@ -1033,56 +1036,27 @@ int main(void)
     
     keyboard_init();
 
+    /* ── Start screen ─────────────────────────────────────────────── */
     draw_start_screen();
+    {
+        int got_break_start = 0;
+        while (g_start_screen_active) {
+            int raw = ps2_read_byte(ps2);
+            if (raw < 0) continue;
+            unsigned char b = (unsigned char)raw;
+            if (b == 0xE0) continue;
+            if (b == KEY_BREAK) { got_break_start = 1; continue; }
+            if (got_break_start) { got_break_start = 0; continue; }
 
-    /* ── Modified Start Screen Input Trap ── */
-    int got_break_start = 0;
-
-    // Loop until user presses Space
-    while (g_start_screen_active) {
-        int raw = ps2_read_byte(ps2);
-        if (raw < 0) continue;
-
-        unsigned char b = (unsigned char)raw;
-        if (b == 0xE0) continue;
-        if (b == KEY_BREAK) { got_break_start = 1; continue; }
-        if (got_break_start) { got_break_start = 0; continue; }
-
-        /* W / S: Navigate up and down */
-        if (b == KEY_W) {
-            g_start_selection = 1;
-            update_start_selection(g_start_selection);
-        }
-        if (b == KEY_S) {
-            g_start_selection = 2;
-            update_start_selection(g_start_selection);
-        }
-
-        if (b == KEY_1) {
-            g_start_selection = 1;
-            update_start_selection(g_start_selection);
-             g_start_screen_active = 0; 
-        }
-        if (b == KEY_2) {
-            g_start_selection = 2;
-            update_start_selection(g_start_selection);
-            g_start_screen_active = 0;
-        }
-
-
-        /* SPACE: Select option and boot main app */
-        if (b == KEY_SPACE) {
-            if (g_start_selection == 1) {
-                /* CREATE YOUR OWN: Just clear the flag and let the sequencer load normally */
-                g_start_screen_active = 0; 
-            } else {
-                /* PRELOAD SONG: We will add the logic for this later! */
-                g_start_screen_active = 0;
-            }
+            if (b == KEY_W) { g_start_selection = 1; update_start_selection(g_start_selection); }
+            if (b == KEY_S) { g_start_selection = 2; update_start_selection(g_start_selection); }
+            if (b == KEY_1) { g_start_selection = 1; update_start_selection(g_start_selection); g_start_screen_active = 0; }
+            if (b == KEY_2) { g_start_selection = 2; update_start_selection(g_start_selection); g_start_screen_active = 0; }
+            if (b == KEY_SPACE) { g_start_screen_active = 0; }
         }
     }
+    /* ── End start screen — sequencer loads normally below ─────────── */
 
-    
     build_and_draw_background();
     draw_toolbar(cur_note_type);
 
@@ -1118,16 +1092,10 @@ int main(void)
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                
-                /* 1. Safely restore the background ONLY where the menu was */
-                int mx, my;
-                for (my = 50; my <= 190; my++) {
-                    for (mx = 70; mx <= 250; mx++) {
-                        plot_pixel(mx, my, bg[my][mx]);
-                    }
-                }
-                
-                /* 2. Repaint any notes and the cursor that were hiding underneath */
+                build_and_draw_background();
+                draw_toolbar(cur_note_type);
+                draw_bottom_tab();
+                update_note_indicator(cur_note_type, cur_accidental);
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
@@ -1144,8 +1112,13 @@ int main(void)
             continue;
         }
 
-        /* Block all other keyboard inputs while the menu is open. */
-        if (menu_open) continue;
+        /* ── Instrument selection — only active while menu is open ── */
+        if (menu_open) {
+            if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP);         continue; }
+            if (b == KEY_2) { toolbar_set_instrument(TB_INST_PIANO);        continue; }
+            if (b == KEY_3) { toolbar_set_instrument(TB_INST_PIANO_REVERB); continue; }
+            continue;   /* swallow all other keys while menu is open */
+        }
 
         /* 1-7: select note type */
         if (b == KEY_1){cur_note_type = NOTE_WHOLE;

@@ -1,8 +1,8 @@
 INSTALL	:= C:/intelFPGA/QUARTUS_Lite_V23.1
 
 MAIN	:= vga_music_v2.c
-HDRS	:= treble_clef_bitmap.h background.h sequencer_audio.h sprites.h toolbar.h start_menu.h mic_input.h
-SRCS	:= vga_music_v2.c background.c sequencer_audio.c toolbar.cstart_menu.c mic_input.c
+HDRS	:= treble_clef_bitmap.h background.h sequencer_audio.h sprites.h toolbar.h piano_samples.h start_menu.h skinny_font.h fat_font.h mic_input.h
+SRCS	:= vga_music_v2.c background.c sequencer_audio.c toolbar.c start_menu.c mic_input.c
 
 SHELL	:= cmd.exe
 
