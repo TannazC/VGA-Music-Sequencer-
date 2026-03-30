@@ -969,25 +969,24 @@ static const char *accidental_label(int accidental)
     return "ACC: off";
 }
 
-static void update_note_indicator(int nt, int accidental) {
+void update_note_indicator(int nt, int accidental, int cur_p, int max_p) {
     int x, y;
-
-    /* Clear the entire current-note UI strip before redrawing it. */
+    /* 1. Clear the entire bottom strip before redrawing. */
     for (y = 210; y < FB_HEIGHT; y++) {
         for (x = 0; x < FB_WIDTH; x++) {
             plot_pixel(x, y, bg[y][x]);
         }
     }
 
-    /* "CURRENT NOTE: " label then glyph (with accidental) on same line */
-    tb_draw_string(10, 222, "CURRENT NOTE:", BLACK);
-    /* Glyph sits right after the label: 14 chars * 6px + 10 offset + 8 gap */
-    draw_note_glyph(108, 226, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
+    /* 2. Draw "CURRENT NOTE:" label */
+    tb_draw_string(10, 222, "CURRENT NOTE:", COLOR_BLACK);
+    
+    /* 3. Draw note glyph (handled in main.c or specialized function) */
+    draw_note_glyph(108, 226, nt, (nt == NOTE_REST) ? 0 : accidental, COLOR_BLACK);
 
-    /* Redraw [M] OPTIONS tab — lives in this strip, gets wiped by the clear above */
-    draw_bottom_tab();
+    /* 4. Update the page indicator in the same strip */
+    draw_page_indicator(cur_p, max_p);
 }
-
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
@@ -1018,8 +1017,6 @@ static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental,
 
     build_and_draw_background();
     draw_toolbar(cur_note_type);
-    draw_bottom_tab();
-    update_note_indicator(cur_note_type, cur_accidental);
     draw_cursor_cell(cur_x, cur_y);
 }
 
@@ -1059,6 +1056,11 @@ int main(void)
 
     build_and_draw_background();
     draw_toolbar(cur_note_type);
+    draw_toolbar_row2(cur_accidental);
+    
+    /* These live at the bottom now */
+    update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+    draw_page_indicator(1, 1);
 
     int cur_col   = 2;   /* cols 0-1 overlap treble clef; start at 2 */
     int cur_row   = 0;
@@ -1074,8 +1076,6 @@ int main(void)
     int got_extended = 0;
     int menu_open = 0;
 
-    draw_bottom_tab();
-    update_note_indicator(cur_note_type, cur_accidental);
 
     while (1)
     {
@@ -1095,8 +1095,8 @@ int main(void)
                 
                 /* 1. Safely restore the background ONLY where the menu was */
                 int mx, my;
-                for (my = 50; my <= 190; my++) {
-                    for (mx = 70; mx <= 250; mx++) {
+                for (my = MENU_Y0; my <= MENU_Y1 + 4; my++) {
+                    for (mx = MENU_X0; mx <= MENU_X1 + 4; mx++) {
                         plot_pixel(mx, my, bg[my][mx]);
                     }
                 }
@@ -1115,6 +1115,13 @@ int main(void)
         if (b == KEY_N) {
             clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
             menu_open = 0;
+            
+            draw_toolbar_row2(cur_accidental);
+    
+            /* These live at the bottom now */
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+            draw_page_indicator(1, 1);
+          
             continue;
         }
 
@@ -1126,83 +1133,47 @@ int main(void)
             continue;   /* swallow all other keys while menu is open */
         }
 
-        /* 1-7: select note type */
-        if (b == KEY_1){cur_note_type = NOTE_WHOLE;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_2){cur_note_type = NOTE_HALF;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_3){cur_note_type = NOTE_QUARTER;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; 
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue; }
-        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue;}
-        if (b == KEY_8) { cur_note_type = NOTE_REST;
-                        cur_accidental = ACC_NONE;
-                        toolbar_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental); continue;}
-
-        /* Q: play sequence */
-        if (b == KEY_Q) {
-            seq_is_playing = 1;
-            seq_is_paused = 0;
-            toolbar_set_playback(TB_STATE_PLAYING);
-            play_sequence(); // This will now check the globals internally
-            toolbar_set_playback(TB_STATE_STOPPED);
-            redraw_all_notes();
-            draw_cursor_cell(cur_x, cur_y);
-            continue;
+        /* 1-8: select note type */
+        if (b == KEY_1) { cur_note_type = NOTE_WHOLE;      toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); 
+continue; }
+        if (b == KEY_2) { cur_note_type = NOTE_HALF;       toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_3) { cur_note_type = NOTE_QUARTER;    toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;  toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
+        if (b == KEY_8) { 
+            cur_note_type = NOTE_REST;
+            cur_accidental = 0; // Accidentals off for rests
+            toolbar_set_note_type(cur_note_type);
+            draw_toolbar_row2(cur_accidental); // Visual feedback
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1); 
+            continue; 
         }
 
-        /* E & T: Handled inside poll_playback_keys now */
-        if (b == KEY_E) { continue; } // Only does something if already playing
-        if (b == KEY_T) { continue; } // Only does something if already playing
-
-        /* R: restart playback */
-        if (b == KEY_R) {
-            seq_is_playing = 1;
-            seq_is_paused = 0;
-            toolbar_set_playback(TB_STATE_PLAYING);
-            play_sequence();
-            toolbar_set_playback(TB_STATE_STOPPED);
-            redraw_all_notes();
-            draw_cursor_cell(cur_x, cur_y);
-            continue;
-        }
-
-        /* ── Z/X/C/V: accidental mode for newly placed notes ── */
+        /* -- Z/X/C/V: accidental mode -- */
         if (b == KEY_Z) {
-            cur_accidental = ACC_NONE;
-            update_note_indicator(cur_note_type, cur_accidental);
+            cur_accidental = 0; 
+            draw_toolbar_row2(cur_accidental); 
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
             continue;
         }
         if (b == KEY_X) {
-            if (cur_note_type != NOTE_REST)
-                cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
-            update_note_indicator(cur_note_type, cur_accidental);
+            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 1) ? 0 : 1;
+            draw_toolbar_row2(cur_accidental); 
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
             continue;
         }
         if (b == KEY_C) {
-            if (cur_note_type != NOTE_REST)
-                cur_accidental = (cur_accidental == ACC_FLAT) ? ACC_NONE : ACC_FLAT;
-            update_note_indicator(cur_note_type, cur_accidental);
+            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 2) ? 0 : 2;
+            draw_toolbar_row2(cur_accidental); 
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
             continue;
         }
         if (b == KEY_V) {
-            if (cur_note_type != NOTE_REST)
-                cur_accidental = (cur_accidental == ACC_NATURAL) ? ACC_NONE : ACC_NATURAL;
-            update_note_indicator(cur_note_type, cur_accidental);
+            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 3) ? 0 : 3;
+            draw_toolbar_row2(cur_accidental); 
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
             continue;
         }
 

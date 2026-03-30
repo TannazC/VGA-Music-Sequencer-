@@ -1,14 +1,14 @@
 /* =======================================================================
-   toolbar.c  --  Top keyboard-shortcut toolbar (implementation)
+   toolbar.c  -  Top keyboard-shortcut toolbar (implementation)
    Optimized for PixelMix (5x7) for maximum legibility.
-   Uses flat-pointer arithmetic to bypass VLA compiler restrictions.
+   Updated for 2-row top layout with compact height to prevent staff overlap.
    ======================================================================= */
 
 #include "toolbar.h"
 #include "background.h"
 #include "skinny_font.h"
 
-/* plot_pixel is defined in main.c */
+/* Externs defined in main.c or background.c */
 extern void plot_pixel(int x, int y, short int c);
 
 /* =======================================================================
@@ -22,20 +22,19 @@ ToolbarState toolbar_state = {
 };
 
 /* =======================================================================
-   Layout geometry
+   Layout geometry (Compact Mode)
    ======================================================================= */
-#define BADGE_AREA_H   26          
-#define BADGE_H        20          
-#define BADGE_Y0       (TOOLBAR_TOP + (BADGE_AREA_H - BADGE_H) / 2)   
-#define BADGE_Y1       (BADGE_Y0 + BADGE_H - 1)                        
+#define ROW1_Y         0
+#define BADGE_AREA_H   22   /* Reduced from 26 */
+#define ROW2_Y         22   /* Row 2 starts exactly after Row 1 */
+#define BADGE_H        18   /* Reduced from 20 */
 
-/* Automatically centers the font vertically based on the atlas height */
-#define FONT_Y0        (BADGE_Y0 + (BADGE_H - SKINNY_FONT_HEIGHT) / 2)                  
 #define FONT_ADVANCE   6
 
 /* Widths */
 #define BADGE_W_TRANS   31   
 #define BADGE_W1        12   
+#define BADGE_W_ACC     18
 #define BADGE_W_TMP_BTN 12  
 #define BADGE_W_TMP_VAL 28  
 #define BADGE_GAP       2    
@@ -78,21 +77,11 @@ ToolbarState toolbar_state = {
 #define TB_NOTE_TXT     COLOR_BLACK
 #define TB_NOTEA_FILL   COLOR_SPEARMINT
 #define TB_NOTEA_TXT    COLOR_WHITE
- 
-/* Action badges */
-#define TB_SPC_FILL     COLOR_SPEARMINT  
-#define TB_SPC_TXT      COLOR_WHITE
-#define TB_DEL_FILL     COLOR_FUCHSIA
-#define TB_DEL_TXT      COLOR_WHITE
 
 /* =======================================================================
-   Unified Rendering Logic (Engineering Grade - No VLAs)
+   Unified Rendering Logic
    ======================================================================= */
 
-/**
- * Renders a character from a 3D atlas passed as a flat pointer.
- * Offset math: (char_idx * height * stride) + (row * stride) + byte_col
- */
 static void draw_atlas_char(int x, int y, int idx, int w, int h, int stride, const unsigned char *ptr, short int col) {
     for (int r = 0; r < h; r++) {
         for (int b = 0; b < stride; b++) {
@@ -124,184 +113,127 @@ static void tb_fill(int x0,int y0,int x1,int y1,short int c) {
 static void tb_hline(int x0,int x1,int y,short int c) { int x; for(x=x0;x<=x1;x++) plot_pixel(x,y,c); }
 static void tb_vline(int x,int y0,int y1,short int c) { int y; for(y=y0;y<=y1;y++) plot_pixel(x,y,c); }
 
-static void tb_group_div(int x) { tb_vline(x, TOOLBAR_TOP + 2, BADGE_Y1 - 2, COLOR_BLACK); }
+static void tb_group_div(int x, int y) { tb_vline(x, y + 2, y + BADGE_AREA_H - 3, COLOR_BLACK); }
 
-static int tb_badge(int x, int bw, const char *label, short int fill, short int txt) {
+/* Flexible Badge Drawer */
+static int tb_badge_at(int x, int y, int bw, const char *label, short int fill, short int txt) {
     int llen = 0;
     for (const char *p = label; *p; p++) llen++;
 
-    /* Centering calculation: nudged +1 pixel to the right for visual balance */
-    int text_w = llen * SKINNY_FONT_WIDTH; 
-    int tx = x + (bw - text_w) / 2 + 3; 
+    int text_w = llen * FONT_ADVANCE; 
+    int tx = x + (bw - text_w) / 2 + 1; 
 
-    tb_fill(x + 1, BADGE_Y0 + 1, x + bw - 2, BADGE_Y1 - 1, fill);
-    tb_hline(x, x + bw - 1, BADGE_Y0, COLOR_BLACK); 
-    tb_hline(x, x + bw - 1, BADGE_Y1, COLOR_BLACK);
-    tb_vline(x, BADGE_Y0, BADGE_Y1, COLOR_BLACK); 
-    tb_vline(x + bw - 1, BADGE_Y0, BADGE_Y1, COLOR_BLACK);
+    int b_y0 = y + (BADGE_AREA_H - BADGE_H) / 2;
+    int b_y1 = b_y0 + BADGE_H - 1;
+    int f_y0 = b_y0 + (BADGE_H - SKINNY_FONT_HEIGHT) / 2;
 
-    for (const char *p = label; *p; p++, tx += SKINNY_FONT_WIDTH) {
-        tb_draw_char(tx, FONT_Y0, (unsigned char)*p, txt);
+    tb_fill(x + 1, b_y0 + 1, x + bw - 2, b_y1 - 1, fill);
+    tb_hline(x, x + bw - 1, b_y0, COLOR_BLACK); 
+    tb_hline(x, x + bw - 1, b_y1, COLOR_BLACK);
+    tb_vline(x, b_y0, b_y1, COLOR_BLACK); 
+    tb_vline(x + bw - 1, b_y0, b_y1, COLOR_BLACK);
+
+    for (const char *p = label; *p; p++, tx += FONT_ADVANCE) {
+        tb_draw_char(tx, f_y0, (unsigned char)*p, txt);
     }
     return x + bw;
 }
 
+static int tb_badge(int x, int bw, const char *label, short int fill, short int txt) {
+    return tb_badge_at(x, ROW1_Y, bw, label, fill, txt);
+}
 
 /* =======================================================================
-   Unified 12x12 Transport Icons (1 = draw, 0 = transparent)
+   Row 1 Icons
    ======================================================================= */
 static const unsigned char ICON_PLAY[12][12] = {
-    {0,0,1,1,0,0,0,0,0,0,0,0},
-    {0,0,1,1,1,1,0,0,0,0,0,0},
-    {0,0,1,1,1,1,1,1,0,0,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,1,1},
-    {0,0,1,1,1,1,1,1,1,1,1,1},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,0,0,0,0},
-    {0,0,1,1,1,1,0,0,0,0,0,0},
-    {0,0,1,1,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0}
+    {0,0,1,1,0,0,0,0,0,0,0,0},{0,0,1,1,1,1,0,0,0,0,0,0},{0,0,1,1,1,1,1,1,0,0,0,0},
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,1,1},{0,0,1,1,1,1,1,1,1,1,1,1},
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,0,0,0,0},{0,0,1,1,1,1,0,0,0,0,0,0},
+    {0,0,1,1,0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
 static const unsigned char ICON_PAUSE[12][12] = {
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,1,1,1,0,0,1,1,1,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0}
+    {0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},
+    {0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},
+    {0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},{0,0,1,1,1,0,0,1,1,1,0,0},
+    {0,0,1,1,1,0,0,1,1,1,0,0},{0,0,0,0,0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
 static const unsigned char ICON_STOP[12][12] = {
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,1,1,1,1,1,1,1,1,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0}
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},{0,0,1,1,1,1,1,1,1,1,0,0},
+    {0,0,1,1,1,1,1,1,1,1,0,0},{0,0,0,0,0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
 static const unsigned char ICON_RESTART[12][12] = {
-    {0,0,0,0,1,1,1,1,1,0,0,0},
-    {0,0,1,1,0,0,0,0,1,1,1,0},
-    {0,1,1,0,0,0,0,1,1,1,1,0},
-    {0,1,1,0,0,0,0,0,1,1,1,0},
-    {1,1,0,0,0,0,0,0,0,1,1,0},
-    {1,1,0,0,0,0,0,0,0,0,1,0},
-    {1,1,0,0,0,0,0,0,0,0,0,0},
-    {0,1,0,0,0,0,0,0,0,1,1,0},
-    {0,1,1,0,0,0,0,0,1,1,0,0},
-    {0,0,1,1,0,0,0,1,1,0,0,0},
-    {0,0,0,1,1,1,1,1,0,0,0,0},
-    {0,0,0,0,0,0,0,0,0,0,0,0}
+    {0,0,0,0,1,1,1,1,1,0,0,0},{0,0,1,1,0,0,0,0,1,1,1,0},{0,1,1,0,0,0,0,1,1,1,1,0},
+    {0,1,1,0,0,0,0,0,1,1,1,0},{1,1,0,0,0,0,0,0,0,1,1,0},{1,1,0,0,0,0,0,0,0,0,1,0},
+    {1,1,0,0,0,0,0,0,0,0,0,0},{0,1,0,0,0,0,0,0,0,1,1,0},{0,1,1,0,0,0,0,0,1,1,0,0},
+    {0,0,1,1,0,0,0,1,1,0,0,0},{0,0,0,1,1,1,1,1,0,0,0,0},{0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
-
-/* Draws the unified 12x12 icon grid */
 static void tb_draw_icon_12(int x, int y, const unsigned char icon[12][12], short int col) {
-    int row, col_idx; 
-    for(row = 0; row < 12; row++){
-        for(col_idx = 0; col_idx < 12; col_idx++){
-            if(icon[row][col_idx] == 1) {
-                plot_pixel(x + col_idx, y + row, col);
-            }
-        }
-    }
+    int r, c; 
+    for(r = 0; r < 12; r++)
+        for(c = 0; c < 12; c++)
+            if(icon[r][c] == 1) plot_pixel(x + c, y + r, col);
 }
 
- 
-/* Single, unified transport badge for ALL 4 buttons */
 static int tb_transport_badge(int x, const unsigned char icon[12][12], char key_char, 
                               short int fill, short int icon_col, short int key_col) {
     int bw = BADGE_W_TRANS; 
     int div_x  = x + 19; 
-    
-    // Center the 12x12 icon in the left side (18px wide)
     int icon_x = x + (18 - 12) / 2; 
-    int icon_y = BADGE_Y0 + (BADGE_H - 12) / 2; 
-    
-    // Center the single char in the right side (14px wide), nudged +1 pixel to the right
+    int b_y0 = (BADGE_AREA_H - BADGE_H) / 2;
+    int icon_y = b_y0 + (BADGE_H - 12) / 2; 
     int key_x  = div_x + ( (x + bw - div_x) - SKINNY_FONT_WIDTH ) / 2 + 1;
+    int f_y0 = b_y0 + (BADGE_H - SKINNY_FONT_HEIGHT) / 2;
 
-    tb_fill(x+1, BADGE_Y0+1, x+bw-2, BADGE_Y1-1, fill);
-    tb_hline(x, x+bw-1, BADGE_Y0, COLOR_BLACK); 
-    tb_hline(x, x+bw-1, BADGE_Y1, COLOR_BLACK);
-    tb_vline(x, BADGE_Y0, BADGE_Y1, COLOR_BLACK); 
-    tb_vline(x+bw-1, BADGE_Y0, BADGE_Y1, COLOR_BLACK);
+    tb_fill(x+1, b_y0+1, x+bw-2, b_y0 + BADGE_H-2, fill);
+    tb_hline(x, x+bw-1, b_y0, COLOR_BLACK); 
+    tb_hline(x, x+bw-1, b_y0 + BADGE_H - 1, COLOR_BLACK);
+    tb_vline(x, b_y0, b_y0 + BADGE_H - 1, COLOR_BLACK); 
+    tb_vline(x+bw-1, b_y0, b_y0 + BADGE_H - 1, COLOR_BLACK);
     
-    for(int r=0; r<12; r++)
-        for(int c=0; c<12; c++)
-            if(icon[r][c]) plot_pixel(icon_x+c, icon_y+r, icon_col);
-
-    tb_vline(div_x, BADGE_Y0 + 2, BADGE_Y1 - 2, COLOR_BLACK);
-    tb_draw_char(key_x, FONT_Y0, (unsigned char)key_char, key_col);
+    tb_draw_icon_12(icon_x, icon_y, icon, icon_col);
+    tb_vline(div_x, b_y0 + 2, b_y0 + BADGE_H - 3, COLOR_BLACK);
+    tb_draw_char(key_x, f_y0, (unsigned char)key_char, key_col);
     
     return x + bw;
 }
 
-//static void tb_group_div(int x) { tb_vline(x,TOOLBAR_TOP+2,BADGE_Y1,TB_DIV); }
- 
-/* =======================================================================
-   Internal state saved for partial redraws
-   ======================================================================= */
 static int g_note_badge_x0 = 0;
 static int g_trans_x0 = 0;
 static int g_bpm_badge_x0 = 0;
 
 static int note_badge_x(int i) { return g_note_badge_x0 + i*(BADGE_W1+BADGE_GAP); }
- 
-/* =======================================================================
-   draw_toolbar  — full first-time draw
-   ======================================================================= */
-void draw_toolbar(int cur_note_type)
-{
-    int x,i; char label[2]; short int fill,txt;
+
+void draw_toolbar(int cur_note_type) {
+    int x, i;
     int is_playing = (toolbar_state.playback == TB_STATE_PLAYING);
     int is_paused  = (toolbar_state.playback == TB_STATE_PAUSED);
  
-    tb_fill(0,TOOLBAR_TOP,FB_WIDTH-1,TOOLBAR_BOT,TB_BG);
-    tb_hline(0,FB_WIDTH-1,BADGE_AREA_H,TB_DIV);
+    tb_fill(0, ROW1_Y, FB_WIDTH-1, ROW1_Y + BADGE_AREA_H - 1, TB_BG);
+    tb_hline(0, FB_WIDTH-1, ROW1_Y + BADGE_AREA_H - 1, TB_DIV);
  
     x = 4; g_trans_x0 = x;
- 
-    /* Group 1: Transport */
-    fill = is_playing ? TB_PLAY_FILL_A : TB_PLAY_FILL;
-    x = tb_transport_badge(x, ICON_PLAY, 'Q', fill, TB_PLAY_ICO, TB_PLAY_KEY) + BADGE_GAP;
-    fill = is_paused ? TB_PAUSE_FILL_A : TB_PAUSE_FILL;
-    x = tb_transport_badge(x, ICON_PAUSE, 'E', fill, TB_PAUSE_ICO, TB_PAUSE_KEY) + BADGE_GAP;
+    x = tb_transport_badge(x, ICON_PLAY, 'Q', is_playing ? TB_PLAY_FILL_A : TB_PLAY_FILL, TB_PLAY_ICO, TB_PLAY_KEY) + BADGE_GAP;
+    x = tb_transport_badge(x, ICON_PAUSE, 'E', is_paused ? TB_PAUSE_FILL_A : TB_PAUSE_FILL, TB_PAUSE_ICO, TB_PAUSE_KEY) + BADGE_GAP;
     x = tb_transport_badge(x, ICON_STOP, 'T', TB_STOP_FILL, TB_STOP_ICO, TB_STOP_KEY) + BADGE_GAP;
-    fill = TB_REST_FILL;
-    x = tb_transport_badge(x, ICON_RESTART, 'R', fill, TB_REST_ICO, TB_REST_KEY); 
+    x = tb_transport_badge(x, ICON_RESTART, 'R', TB_REST_FILL, TB_REST_ICO, TB_REST_KEY); 
     
-    x += GROUP_SEP/2; tb_group_div(x); x += GROUP_SEP/2;
- 
-    /* Group 2: Note type 1-7 */
-    g_note_badge_x0 = x; label[1] = '\0';
-    for(i=0;i<TB_NUM_NOTE_TYPES;i++){
-        label[0]=(char)('1'+i);
-        fill = (i==cur_note_type) ? TB_NOTEA_FILL : TB_NOTE_FILL;
-        txt  = (i==cur_note_type) ? TB_NOTEA_TXT  : TB_NOTE_TXT;
-        x = tb_badge(x,BADGE_W1,label,fill,txt)+BADGE_GAP;
+    x += GROUP_SEP/2; tb_group_div(x, ROW1_Y); x += GROUP_SEP/2;
+    g_note_badge_x0 = x;
+    for(i=0; i<TB_NUM_NOTE_TYPES; i++){
+        char label[2] = {(char)('1'+i), '\0'};
+        short int fill = (i==cur_note_type) ? TB_NOTEA_FILL : TB_NOTE_FILL;
+        short int txt  = (i==cur_note_type) ? TB_NOTEA_TXT  : TB_NOTE_TXT;
+        x = tb_badge(x, BADGE_W1, label, fill, txt) + BADGE_GAP;
     }
     x -= BADGE_GAP;
- 
-    x += GROUP_SEP/2; tb_group_div(x); x += GROUP_SEP/2;
- 
-    /* Group 3: Tempo Control [-] [120] [+] */
+    x += GROUP_SEP/2; tb_group_div(x, ROW1_Y); x += GROUP_SEP/2;
     x = tb_badge(x, BADGE_W_TMP_BTN, "-", COLOR_FUCHSIA, COLOR_WHITE) + BADGE_GAP;
     
     /* Save the X coordinate so we can dynamically overwrite the number later */
@@ -310,147 +242,108 @@ void draw_toolbar(int cur_note_type)
     /* Draw the initial BPM number badge */
     toolbar_set_bpm(toolbar_state.bpm);
     x += BADGE_W_TMP_VAL + BADGE_GAP; 
-    
-    x = tb_badge(x, BADGE_W_TMP_BTN, "+", COLOR_SPEARMINT, COLOR_WHITE);
+    tb_badge(x, BADGE_W_TMP_BTN, "+", COLOR_SPEARMINT, COLOR_WHITE);
 }
- 
+
 /* =======================================================================
-   toolbar_set_note_type
+   Row 2: Accidentals & Actions
    ======================================================================= */
-void toolbar_set_note_type(int cur_note_type)
-{
-    int i; char label[2]; short int fill,txt; label[1]='\0';
-    for(i=0;i<TB_NUM_NOTE_TYPES;i++){
-        label[0]=(char)('1'+i);
-        fill = (i==cur_note_type) ? TB_NOTEA_FILL : TB_NOTE_FILL;
-        txt  = (i==cur_note_type) ? TB_NOTEA_TXT  : TB_NOTE_TXT;
-        tb_badge(note_badge_x(i),BADGE_W1,label,fill,txt);
+void draw_toolbar_row2(int cur_accidental) {
+    int x = 4;
+    tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_BG);
+    tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_DIV);
+
+    const char* acc_labels[] = {"Z", "X", "C", "V"}; 
+    for(int i = 0; i < 4; i++) {
+        short int fill = (i == cur_accidental) ? COLOR_FUCHSIA : COLOR_WHITE;
+        short int txt  = (i == cur_accidental) ? COLOR_WHITE : COLOR_BLACK;
+        x = tb_badge_at(x, ROW2_Y, 18, acc_labels[i], fill, txt) + BADGE_GAP;
     }
+    
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
+    x = tb_badge_at(x, ROW2_Y, 46, "N: CLR", COLOR_MUTED_NEON_BLUE, COLOR_WHITE) + BADGE_GAP;
+    x = tb_badge_at(x, ROW2_Y, 46, "M: OPT", COLOR_SPEARMINT, COLOR_WHITE);
 }
- 
+
 /* =======================================================================
-   toolbar_set_playback
-   ======================================================================= */
-void toolbar_set_playback(int state)
-{
-    int x = g_trans_x0; short int fill;
-    int is_playing = (state == TB_STATE_PLAYING);
-    int is_paused  = (state == TB_STATE_PAUSED);
-    toolbar_state.playback = state;
- 
-    fill = is_playing ? TB_PLAY_FILL_A : TB_PLAY_FILL;
-    x = tb_transport_badge(x, ICON_PLAY, 'Q', fill, TB_PLAY_ICO, TB_PLAY_KEY) + BADGE_GAP;
-    fill = is_paused ? TB_PAUSE_FILL_A : TB_PAUSE_FILL;
-    x = tb_transport_badge(x, ICON_PAUSE, 'E', fill, TB_PAUSE_ICO, TB_PAUSE_KEY) + BADGE_GAP;
-    x = tb_transport_badge(x, ICON_STOP, 'T', TB_STOP_FILL, TB_STOP_ICO, TB_STOP_KEY) + BADGE_GAP;
-    tb_transport_badge(x, ICON_RESTART, 'R', TB_REST_FILL, TB_REST_ICO, TB_REST_KEY);
-}
-/* =======================================================================
-   Menu and Overlay Logic
+   Menu and Bottom UI Logic
    ======================================================================= */
 
-/* Helper to draw full words instead of single characters */
 void tb_draw_string(int x, int y, const char *str, short int col) {
     const char *p;
     int tx = x;
     for(p = str; *p; p++, tx += FONT_ADVANCE) {
-        if (*p == ' ') continue; /* Skip drawing, just advance X coordinate */
+        if (*p == ' ') continue; 
         tb_draw_char(tx, y, (unsigned char)*p, col);
     }
 }
 
-/* Draws a small tab at the bottom right of the screen */
-void draw_bottom_tab(void) {
-    int w = 75;
-    int h = 14;
-    int x = FB_WIDTH - w - 10;
-    int y = FB_HEIGHT - h - 10;
+void draw_page_indicator(int cur_page, int max_pages) {
+    int y = FB_HEIGHT - 18;
+    char page_str[9];
+    page_str[0] = 'P'; page_str[1] = 'A'; page_str[2] = 'G'; page_str[3] = 'E'; page_str[4] = ' ';
+    page_str[5] = '0' + cur_page; page_str[6] = '/'; page_str[7] = '0' + max_pages; page_str[8] = '\0';
     
-    tb_fill(x, y, x+w, y+h, TB_BG);
-    tb_hline(x, x+w, y, TB_BORDER);
-    tb_vline(x, y, y+h, TB_BORDER);
-    tb_vline(x+w, y, y+h, TB_BORDER);
-    tb_hline(x, x+w, y+h, TB_BORDER);
-    
-    tb_draw_string(x + 5, y + 4, "[M] OPTIONS", TB_BORDER);
+    int page_w = 8 * FONT_ADVANCE;
+    int cx = FB_WIDTH - page_w - 20; 
+    /* Wipe area with staff background pink color (0xFDF3F6) */
+    tb_fill(cx, y - 2, cx + page_w + 5, y + 10, (short int)0xFDF3F6); 
+    tb_draw_string(cx, y, page_str, COLOR_BLACK);
 }
 
-/* ── Menu geometry ── */
-#define MENU_X0   70
-#define MENU_Y0   50
-#define MENU_X1  250
-#define MENU_Y1  190
-
-#define MENU_ROW_BEEP   (MENU_Y0 + 45)
-#define MENU_ROW_PIANO  (MENU_Y0 + 70)
-#define MENU_ROW_PREV   (MENU_Y0 + 95)
-
-static void menu_draw_row(int y, const char *label, const char *key,
-                           short int fill, short int txt, int selected)
-{
-    int bx = MENU_X0 + 10;
+static void menu_draw_row(int y, const char *label, const char *key, short int fill, short int txt, int selected) {
+    int bx = MENU_X0 + 15;
     if (selected) {
-        tb_fill(bx, y - 2, bx + 9, y + 9, fill);
+        tb_fill(bx, y - 2, bx + 12, y + 10, fill);
     } else {
-        tb_fill(bx, y - 2, bx + 9, y + 9, TB_BG);
-        tb_hline(bx, bx + 9, y - 2, TB_BORDER);
-        tb_hline(bx, bx + 9, y + 9, TB_BORDER);
-        tb_vline(bx, y - 2, y + 9, TB_BORDER);
-        tb_vline(bx + 9, y - 2, y + 9, TB_BORDER);
+        tb_hline(bx, bx + 12, y - 2, COLOR_BLACK);
+        tb_hline(bx, bx + 12, y + 10, COLOR_BLACK);
+        tb_vline(bx, y - 2, y + 10, COLOR_BLACK);
+        tb_vline(bx + 12, y - 2, y + 10, COLOR_BLACK);
     }
-    tb_draw_string(bx + 2, y, key, selected ? txt : TB_BORDER);
-    tb_draw_string(bx + 14, y, label, selected ? fill : TB_NOTE_TXT);
+    tb_draw_char(bx + 4, y + 1, key[0], selected ? txt : COLOR_BLACK);
+    tb_draw_string(bx + 20, y + 1, label, selected ? fill : COLOR_BLACK);
 }
 
 void draw_options_menu(void) {
-    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, TB_BORDER);
-    tb_fill(MENU_X0+2, MENU_Y0+2, MENU_X1-2, MENU_Y1-2, TB_BG);
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER); // Shadow
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
+    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
 
-    tb_draw_string(MENU_X0 + 40, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PAUSE_FILL);
-    tb_hline(MENU_X0+10, MENU_X1-10, MENU_Y0 + 22, TB_DIV);
-    tb_draw_string(MENU_X0 + 24, MENU_Y0 + 32, "KEY  INSTRUMENT", TB_STOP_FILL);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
+    tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
     int inst = toolbar_state.instrument;
-    menu_draw_row(MENU_ROW_BEEP,  "BEEP",         "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_ROW_PIANO, "PIANO",        "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_ROW_PREV,  "PIANO+REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
-
-    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "M - CLOSE  N - CLEAR", TB_STOP_FILL);
+    menu_draw_row(MENU_Y0 + 45, "BEEP",   "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    menu_draw_row(MENU_Y0 + 70, "PIANO",  "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    menu_draw_row(MENU_Y0 + 95, "REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
+    
+    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 
 void toolbar_set_instrument(int inst) {
     toolbar_state.instrument = inst;
-    menu_draw_row(MENU_ROW_BEEP,  "BEEP",         "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_ROW_PIANO, "PIANO",        "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_ROW_PREV,  "PIANO+REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
+    draw_options_menu();
 }
-
-/* =======================================================================
-   Dynamic Tempo Badge
-   ======================================================================= */
 
 void toolbar_set_bpm(int bpm) {
     char str[4];
-    
-    /* Clamp the tempo FIRST so it never drops below 40 or above 999 */
     if (bpm > 999) bpm = 999;
     if (bpm < 40) bpm = 40;
-    
-    /* THEN save the safe, clamped number to the system state */
     toolbar_state.bpm = bpm;
-    
-    /* Convert integer to characters manually to save memory */
     str[0] = '0' + (bpm / 100);
     str[1] = '0' + ((bpm / 10) % 10);
     str[2] = '0' + (bpm % 10);
     str[3] = '\0';
-    
-    /* Drop the leading zero if the BPM is under 100 (e.g., ' 90') */
-    char *display_str = str;
-    if (str[0] == '0') {
-        display_str = &str[1];
+    char *display_str = (str[0] == '0') ? &str[1] : str;
+    tb_badge_at(g_bpm_badge_x0, ROW1_Y, BADGE_W_TMP_VAL, display_str, COLOR_WHITE, COLOR_BLACK);
+}
+
+void toolbar_set_note_type(int cur_note_type) {
+    for(int i=0; i<TB_NUM_NOTE_TYPES; i++){
+        char label[2] = {(char)('1'+i), '\0'};
+        short int fill = (i==cur_note_type) ? TB_NOTEA_FILL : TB_NOTE_FILL;
+        short int txt  = (i==cur_note_type) ? TB_NOTEA_TXT  : TB_NOTE_TXT;
+        tb_badge(note_badge_x(i), BADGE_W1, label, fill, txt);
     }
-    
-    /* Redraw just the middle number badge */
-    tb_badge(g_bpm_badge_x0, BADGE_W_TMP_VAL, display_str, COLOR_WHITE, COLOR_BLACK);
 }

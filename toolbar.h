@@ -67,6 +67,12 @@
 /* ── Note type count exported (toolbar only shows 5) ───────────────── */
 #define TB_NUM_NOTE_TYPES  8
 
+/* -- Menu geometry -- */
+#define MENU_X0   70
+#define MENU_Y0   60  /* Lowered to clear Row 2 toolbar */
+#define MENU_X1  250
+#define MENU_Y1  200
+
 /* ── Global toolbar state ────────────────────────────────────────────
    Defined in toolbar.c; shared via extern with sequencer_audio.c.     */
 typedef struct {
