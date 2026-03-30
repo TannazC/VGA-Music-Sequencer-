@@ -286,7 +286,7 @@ void draw_page_indicator(int cur_page, int max_pages) {
     
     int page_w = 8 * FONT_ADVANCE;
     /* Logic to center the text exactly in the middle of the screen */
-    int cx = (FB_WIDTH - page_w) / 2; 
+    int cx = (FB_WIDTH - page_w) / 2 + 15; 
 
     tb_draw_string(cx, y, page_str, COLOR_BLACK);
 }

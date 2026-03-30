@@ -1052,91 +1052,84 @@ static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental,
 /* ═══════════════════════════════════════════════════════════════════════
    Main
    ═══════════════════════════════════════════════════════════════════════ */
-int main(void)
-{
+int main(void) {
     volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
-    volatile int *ps2        = (volatile int *)PS2_BASE;
+    volatile int *ps2         = (volatile int *)PS2_BASE;
 
     pixel_buffer_start = *pixel_ctrl;
     *(pixel_ctrl + 1)  = pixel_buffer_start;
     
     keyboard_init();
 
-    /* ── Start screen ─────────────────────────────────────────────── */
     draw_start_screen();
-    {
-        int got_break_start = 0;
-        while (g_start_screen_active) {
-            int raw = ps2_read_byte(ps2);
-            if (raw < 0) continue;
-            unsigned char b = (unsigned char)raw;
-            if (b == 0xE0) continue;
-            if (b == KEY_BREAK) { got_break_start = 1; continue; }
-            if (got_break_start) { got_break_start = 0; continue; }
+    while (g_start_screen_active) {
+        int raw = ps2_read_byte(ps2);
+        if (raw < 0) continue;
+        unsigned char b = (unsigned char)raw;
+        if (b == 0xE0) continue;
+        static int got_break_start = 0;
+        if (b == KEY_BREAK) { got_break_start = 1; continue; }
+        if (got_break_start) { got_break_start = 0; continue; }
 
-            if (b == KEY_W) { g_start_selection = 1; update_start_selection(g_start_selection); }
-            if (b == KEY_S) { g_start_selection = 2; update_start_selection(g_start_selection); }
-            if (b == KEY_1) { g_start_selection = 1; update_start_selection(g_start_selection); g_start_screen_active = 0; }
-            if (b == KEY_2) { g_start_selection = 2; update_start_selection(g_start_selection); g_start_screen_active = 0; }
-            if (b == KEY_SPACE) { g_start_screen_active = 0; }
-        }
+        if (b == KEY_W) { g_start_selection = 1; update_start_selection(1); }
+        if (b == KEY_S) { g_start_selection = 2; update_start_selection(2); }
+        if (b == KEY_SPACE || b == KEY_1 || b == KEY_2) g_start_screen_active = 0;
     }
-    /* ── End start screen — sequencer loads normally below ─────────── */
 
     build_and_draw_background();
     draw_toolbar(cur_note_type);
     draw_toolbar_row2(cur_accidental);
-    
-    /* These live at the bottom now */
     update_note_indicator(cur_note_type, cur_accidental, 1, 1);
-    draw_page_indicator(1, 1);
-    draw_bottom_tab();
 
-    int cur_col   = 2;   /* cols 0-1 overlap treble clef; start at 2 */
-    int cur_row   = 0;
-    int cur_staff = 0;
-    int cur_slot  = 0;
-    int cur_x     = col_to_x(cur_col);
-    int cur_y     = row_to_y(cur_row, &cur_staff, &cur_slot);
-
+    int cur_col = 2, cur_row = 0, cur_staff, cur_slot;
+    int cur_x = col_to_x(cur_col);
+    int cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
     draw_cursor_cell(cur_x, cur_y);
-    pixel_buffer_start = *pixel_ctrl;
 
-    int got_break = 0;
-    int got_extended = 0;
-    int menu_open = 0;
+    int got_break = 0, got_extended = 0, menu_open = 0;
 
-
-    while (1)
-    {
+    while (1) {
         int raw = ps2_read_byte(ps2);
         if (raw < 0) continue;
-
         unsigned char b = (unsigned char)raw;
 
         if (b == 0xE0) { got_extended = 1; continue; }
         if (b == KEY_BREAK) { got_break = 1; continue; }
-        if (got_break)      { got_break = 0; got_extended = 0; continue; }
+        if (got_break) { got_break = 0; got_extended = 0; continue; }
 
-        /* ── M: toggle options menu ── */
+        /* ── Q/E/T/R: Playback Controls (Restored) ── */
+        if (b == KEY_Q) {
+            if (!seq_is_playing) {
+                seq_is_playing = 1; seq_is_paused = 0;
+                toolbar_state.playback = TB_STATE_PLAYING;
+                draw_toolbar(cur_note_type);
+                play_sequence(); /* This function blocks in sequencer_audio.c until seq_is_playing is 0 */
+                toolbar_state.playback = TB_STATE_STOPPED;
+                draw_toolbar(cur_note_type);
+            }
+            continue;
+        }
+        if (b == KEY_E) {
+            seq_is_paused = !seq_is_paused;
+            toolbar_state.playback = seq_is_paused ? TB_STATE_PAUSED : TB_STATE_PLAYING;
+            draw_toolbar(cur_note_type);
+            continue;
+        }
+        if (b == KEY_T) {
+            seq_is_playing = 0; /* sequencer_audio.c checks this in its loop */
+            continue;
+        }
+
+        /* ── Navigation, Selection & Editing ── */
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                
-                /* 1. Safely restore the background ONLY where the menu was */
-                int mx, my;
-                for (my = MENU_Y0; my <= MENU_Y1 + 4; my++) {
-                    for (mx = MENU_X0; mx <= MENU_X1 + 4; mx++) {
+                for (int my = MENU_Y0; my <= MENU_Y1 + 4; my++)
+                    for (int mx = MENU_X0; mx <= MENU_X1 + 4; mx++)
                         plot_pixel(mx, my, bg[my][mx]);
-                    }
-                }
-                
-                /* 2. Repaint any notes and the cursor that were hiding underneath */
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
+                redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open = 1;
-                draw_options_menu();
+                menu_open = 1; draw_options_menu();
             }
             continue;
         }
@@ -1155,59 +1148,44 @@ int main(void)
             continue;
         }
 
-        /* ── Instrument selection — only active while menu is open ── */
         if (menu_open) {
-            if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP);         continue; }
-            if (b == KEY_2) { toolbar_set_instrument(TB_INST_PIANO);        continue; }
-            if (b == KEY_3) { toolbar_set_instrument(TB_INST_PIANO_REVERB); continue; }
-            continue;   /* swallow all other keys while menu is open */
+            if (b == KEY_1) toolbar_set_instrument(TB_INST_BEEP);
+            if (b == KEY_2) toolbar_set_instrument(TB_INST_PIANO);
+            if (b == KEY_3) toolbar_set_instrument(TB_INST_PIANO_REVERB);
+            continue;
         }
 
-        /* 1-8: select note type */
-        if (b == KEY_1) { cur_note_type = NOTE_WHOLE;      toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); 
-continue; }
-        if (b == KEY_2) { cur_note_type = NOTE_HALF;       toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_3) { cur_note_type = NOTE_QUARTER;    toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;  toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH; toolbar_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, 1, 1); continue; }
-        if (b == KEY_8) { 
-            cur_note_type = NOTE_REST;
-            cur_accidental = 0; // Accidentals off for rests
+        /* Note selection 1-8: FIX: Use explicit check to avoid swallowing WASD codes */
+        int is_note_key = (b == KEY_1 || b == KEY_2 || b == KEY_3 || b == KEY_4 || 
+                           b == KEY_5 || b == KEY_6 || b == KEY_7 || b == KEY_8);
+        
+        if (is_note_key) {
+            if (b == KEY_1) cur_note_type = NOTE_WHOLE;
+            else if (b == KEY_2) cur_note_type = NOTE_HALF;
+            else if (b == KEY_3) cur_note_type = NOTE_QUARTER;
+            else if (b == KEY_4) cur_note_type = NOTE_BEAM2_8TH;
+            else if (b == KEY_5) cur_note_type = NOTE_BEAM4_16TH;
+            else if (b == KEY_6) cur_note_type = NOTE_BEAM2_16TH;
+            else if (b == KEY_7) cur_note_type = NOTE_SINGLE16TH;
+            else if (b == KEY_8) { cur_note_type = NOTE_REST; cur_accidental = 0; draw_toolbar_row2(0); }
+            
             toolbar_set_note_type(cur_note_type);
-            draw_toolbar_row2(cur_accidental); // Visual feedback
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1); 
-            continue; 
-        }
-
-        /* -- Z/X/C/V: accidental mode -- */
-        if (b == KEY_Z) {
-            cur_accidental = 0; 
-            draw_toolbar_row2(cur_accidental); 
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
-            continue;
-        }
-        if (b == KEY_X) {
-            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 1) ? 0 : 1;
-            draw_toolbar_row2(cur_accidental); 
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
-            continue;
-        }
-        if (b == KEY_C) {
-            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 2) ? 0 : 2;
-            draw_toolbar_row2(cur_accidental); 
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
-            continue;
-        }
-        if (b == KEY_V) {
-            if (cur_note_type != NOTE_REST) cur_accidental = (cur_accidental == 3) ? 0 : 3;
-            draw_toolbar_row2(cur_accidental); 
             update_note_indicator(cur_note_type, cur_accidental, 1, 1);
             continue;
         }
 
-        /* ── Up/Down arrows: move the head currently under the cursor ── */
+        /* Accidental selection Z/X/C/V */
+        if (b == KEY_Z || b == KEY_X || b == KEY_C || b == KEY_V) {
+            if (b == KEY_Z) cur_accidental = 0;
+            else if (b == KEY_X) cur_accidental = 1;
+            else if (b == KEY_C) cur_accidental = 2;
+            else if (b == KEY_V) cur_accidental = 3;
+            draw_toolbar_row2(cur_accidental);
+            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+            continue;
+        }
+
+        /* Arrow Keys: Pitch Adjustment */
         if (got_extended && (b == KEY_UP || b == KEY_DOWN)) {
             int delta = (b == KEY_UP) ? -1 : 1;
             if (move_note_head(cur_col, cur_staff, cur_slot, delta)) {
@@ -1215,73 +1193,27 @@ continue; }
                 cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
                 draw_cursor_cell(cur_x, cur_y);
             }
-            got_extended = 0;
-            continue;
-        }
-        got_extended = 0;
-
-        /* ── Space: place ── */
-        if (b == KEY_SPACE) {
-            if (cur_note_type == NOTE_REST) {
-                /* Rest always snaps to middle of current staff (slot 5) */
-                int rest_slot = SLOTS_PER_STAFF / 2;
-                int rest_row  = cur_staff * SLOTS_PER_STAFF + rest_slot;
-                int rest_y    = row_to_y(rest_row, 0, 0);
-                place_note(cur_col, cur_staff, rest_slot, cur_x, rest_y, cur_note_type);
-                /* Erase the stray blue cursor cell drawn at rest_y by place_note */
-                {
-                    int ex, ey;
-                    for (ey = rest_y - CELL_H/2; ey <= rest_y + CELL_H/2; ey++)
-                        for (ex = cur_x - CELL_W/2; ex <= cur_x + CELL_W/2; ex++)
-                            if (ex >= 0 && ex < FB_WIDTH && ey >= 0 && ey < FB_HEIGHT)
-                                plot_pixel(ex, ey, bg[ey][ex]);
-                }
-                redraw_all_notes();
-                /* Restore cursor highlight at the actual cursor position */
-                draw_cursor_cell(cur_x, cur_y);
-            } else {
-                place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
-            }
+            got_extended = 0; continue;
         }
 
-        /* ── Backspace: delete ── */
-        if (b == KEY_DELETE)
-            delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
-
-        /* ── - / +: Adjust Tempo ── */
-        if (b == KEY_MINUS) {
-            toolbar_set_bpm(toolbar_state.bpm - 5);
-            continue;
-        }
-        if (b == KEY_EQUALS) {
-            toolbar_set_bpm(toolbar_state.bpm + 5);
-            continue;
-        }
-
-        /* ── W/A/S/D: navigate ── */
+        /* Navigation: W/A/S/D */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
-            int new_col = cur_col;
-            int new_row = cur_row;
-
-            if (b == KEY_W && cur_row > 0)              new_row--;
-            if (b == KEY_S && cur_row < TOTAL_ROWS - 1) new_row++;
-            if (b == KEY_A && cur_col > 2)              new_col--;  /* col 0-1 blocked */
-            if (b == KEY_D && cur_col < TOTAL_COLS - 1) new_col++;
-
-            if (new_col != cur_col || new_row != cur_row) {
-                erase_cursor_cell(cur_x, cur_y);
-                cur_col = new_col;
-                cur_row = new_row;
-                cur_x   = col_to_x(cur_col);
-                cur_y   = row_to_y(cur_row, &cur_staff, &cur_slot);
-                /* Repaint all notes so stems/beams under old cursor survive */
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
-            }
+            erase_cursor_cell(cur_x, cur_y);
+            if (b == KEY_W && cur_row > 0) cur_row--;
+            if (b == KEY_S && cur_row < TOTAL_ROWS - 1) cur_row++;
+            if (b == KEY_A && cur_col > 2) cur_col--;
+            if (b == KEY_D && cur_col < TOTAL_COLS - 1) cur_col++;
+            cur_x = col_to_x(cur_col);
+            cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
+            redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
         }
+
+        if (b == KEY_SPACE) place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+        if (b == KEY_DELETE) delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
+        if (b == KEY_MINUS) toolbar_set_bpm(toolbar_state.bpm - 5);
+        if (b == KEY_EQUALS) toolbar_set_bpm(toolbar_state.bpm + 5);
 
         pixel_buffer_start = *pixel_ctrl;
     }
-
     return 0;
 }
