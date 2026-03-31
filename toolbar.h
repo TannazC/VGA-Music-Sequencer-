@@ -59,7 +59,6 @@
 #define TB_INST_PIANO        1 
 #define TB_INST_PIANO_REVERB 2 
 #define TB_INST_XYLOPHONE    3
-#define TB_INST_TUBA         4
 
 /* -- Playback state -- */
 #define TB_STATE_STOPPED  0

@@ -11,7 +11,6 @@
 #include "toolbar.h"
 #include "piano_samples.h"
 #include "xylophone_samples.h"
-#include "tuba_samples.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware
@@ -337,11 +336,6 @@ static void get_sample_buf(int inst, int slot, int accidental,
         nat_tbl   = xylophone_nat_table;   nat_len   = xylophone_nat_len_table;
         sharp_tbl = xylophone_sharp_table; sharp_len = xylophone_sharp_len_table;
         flat_tbl  = xylophone_flat_table;  flat_len  = xylophone_flat_len_table;
-        break;
-    case TB_INST_TUBA:
-        nat_tbl   = tuba_nat_table;   nat_len   = tuba_nat_len_table;
-        sharp_tbl = tuba_sharp_table; sharp_len = tuba_sharp_len_table;
-        flat_tbl  = tuba_flat_table;  flat_len  = tuba_flat_len_table;
         break;
     case TB_INST_PIANO_REVERB:
         nat_tbl   = piano_rev_nat_table;   nat_len   = piano_rev_nat_len_table;
