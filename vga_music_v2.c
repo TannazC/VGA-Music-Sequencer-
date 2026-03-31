@@ -1639,7 +1639,9 @@ restart_main_menu:
             {
                 menu_open = 0;
                 menu_state = MENU_STATE_MAIN;
-                for (int my = MENU_Y0; my <= MENU_Y1 + 4; my++)
+                /* Erase up to the taller instrument submenu bottom (MENU_Y0+175+4=239) */
+                int erase_y1 = (MENU_Y0 + 179) > (MENU_Y1 + 4) ? (MENU_Y0 + 179) : (MENU_Y1 + 4);
+                for (int my = MENU_Y0; my <= erase_y1; my++)
                     for (int mx = MENU_X0; mx <= MENU_X1 + 4; mx++)
                         plot_pixel(mx, my, bg[my][mx]);
                 redraw_all_notes();
