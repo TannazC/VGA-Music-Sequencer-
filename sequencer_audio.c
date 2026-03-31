@@ -3,51 +3,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Playback engine for the 4-staff music sequencer.
  * Include sequencer_audio.h in vga_music_v2.c and call play_sequence().
- *
- * AUDIO FIXES (vs original broken version)
- * ─────────────────────────────────────────
- * 1. audiop->control FIFO-clear bits are write-1-to-clear on the DE-series
- *    WM8731 core.  Writing 0x3 and leaving it set continuously resets the
- *    write FIFOs — so every sample we push gets discarded.
- *    Fix: write 0x3, then immediately write 0x0 to de-assert the clear.
- *
- * 2. The square-wave lab (and the echo lab) both check wsrc > 0 && wslc > 0
- *    before pushing a sample.  The original play_column checked equality
- *    to zero with OR — semantically the same but more fragile.  Now uses
- *    the pattern that is proven to work in the lab:
- *       while (audiop->wsrc == 0 || audiop->wslc == 0) {}
- *
- * 3. SQ_AMP raised from 0x200000 to 0x600000 — quieter values sometimes
- *    fall below the DAC's noise floor at the default gain setting.
- *
- * 4. pitch_freq_row[] corrected: row uses note's own staff index, not the
- *    outer-loop staff variable (same value but made explicit for clarity).
- *
- * 5. Oscillator half_period floor raised: freq > FS/2 would give
- *    half_period = 0 causing a divide-by-zero / silence.  Guard extended.
- *
- * TIMELINE MODEL
- * ──────────────
- * The 4 staves are ONE continuous melody wrapped like lines of text:
- *   Staff 0  col 1-15  (bar 1)
- *   Staff 1  col 1-15  (bar 2)
- *   Staff 2  col 1-15  (bar 3)
- *   Staff 3  col 1-15  (bar 4)
- * Playback goes left-to-right across staff 0, then staff 1, 2, 3.
- *
- * PITCH MAPPING
- * ─────────────
- * Pitch = f(absolute grid row).  Row = staff*9 + pitch_slot.
- * Row 0 (top of staff 0) = F5, descends diatonically to row 35 = F0.
- * Staff number only determines WHEN a note plays, never its pitch.
- *
- * PLAYHEAD ANIMATION — SAFE PIXEL SAVE/RESTORE
- * ─────────────────────────────────────────────
- * Before drawing the green bar we save every pixel it will cover into
- * a local buffer.  After audio finishes we write those pixels back
- * exactly.  We never touch bg[][] or call redraw_all_notes() during
- * erase — so no note, staff line, beam or stem is ever disturbed.
- * ─────────────────────────────────────────────────────────────────────────────
  */
 
 #include <stdint.h>
@@ -101,9 +56,6 @@ static inline int32_t clamp24(int32_t x)
 #define ACC_FLAT     2
 #define ACC_NATURAL  3
 
-/* (unused — kept for reference only)
-static const int note_num_heads_audio[NUM_NOTE_TYPES] = { 1,1,1,2,4,2,1 }; */
-
 /* ═══════════════════════════════════════════════════════════════════════
    Grid constants  (must match background.h / vga_music_v2.c)
    ═══════════════════════════════════════════════════════════════════════ */
@@ -112,9 +64,9 @@ static const int note_num_heads_audio[NUM_NOTE_TYPES] = { 1,1,1,2,4,2,1 }; */
 #define TOTAL_COLS       NUM_STEPS                          /* 16 */
 #define FIRST_COL        2   /* cols 0-1 overlap treble clef */
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Note struct  (must be identical to vga_music_v2.c)
-   ═══════════════════════════════════════════════════════════════════════ */
+/* =======================================================================
+   Note struct  (must be identical to main.c)
+   ======================================================================= */
 #define MAX_NOTES  512
 #define MAX_HEADS  4
 
@@ -137,28 +89,21 @@ typedef struct {
     int head_y[MAX_HEADS];
     int page;
 } Note;
+#endif /* NOTE_STRUCT_DEFINED */
+
+/* FIXED: Moved externs OUTSIDE the ifndef block so CPulator always sees them */
 extern Note      notes[MAX_NOTES];
 extern int       num_notes;
 extern int       pixel_buffer_start;
 extern short int bg[FB_HEIGHT][FB_WIDTH];
-#endif /* NOTE_STRUCT_DEFINED */
+extern int       cur_page;
+extern int       cur_note_type; 
 
-//so that we can play,pause, and poll keys during playback without including toolbar.h here
 extern volatile int seq_is_playing;
 extern volatile int seq_is_paused;
-extern void poll_playback_keys(void);
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Pitch table — slot 0 (top line, F5) → slot 8 (bottom line, E4)
-
-   Each staff has 9 slots: 5 lines + 4 spaces, numbered 0 (top) to 8 (bottom).
-   ALL staves share the same 9 frequencies — staff position controls WHEN
-   a note plays (which bar), never its pitch.  Only pitch_slot (0–8)
-   determines the frequency.
-
-   Fix: the old code used  row = staff * 9 + slot, so a note on staff 1
-   slot 0 played a different (lower) pitch than staff 0 slot 0.  Now every
-   staff plays the same scale regardless of which bar it sits in.
+   Pitch table - slot 0 (top line, F5) -> slot 8 (bottom line, E4)
    ═══════════════════════════════════════════════════════════════════════ */
 static const int pitch_freq_slot[11] = {
      784, /* slot  0  G5  */
@@ -175,37 +120,16 @@ static const int pitch_freq_slot[11] = {
 };
 
 static const int pitch_freq_slot_sharp[11] = {
-     831, /* G#5 */
-     740, /* F#5 */
-     698, /* E#5 -> F5 */
-     622, /* D#5 */
-     554, /* C#5 */
-     523, /* B#4 -> C5 */
-     466, /* A#4 */
-     415, /* G#4 */
-     370, /* F#4 */
-     349, /* E#4 -> F4 */
-     311  /* D#4 */
+     831, 740, 698, 622, 554, 523, 466, 415, 370, 349, 311 
 };
 
 static const int pitch_freq_slot_flat[11] = {
-     740, /* Gb5 */
-     659, /* Fb5 -> E5 */
-     622, /* Eb5 */
-     554, /* Db5 */
-     494, /* Cb5 -> B4 */
-     466, /* Bb4 */
-     415, /* Ab4 */
-     370, /* Gb4 */
-     330, /* Fb4 -> E4 */
-     311, /* Eb4 */
-     277  /* Db4 */
+     740, 659, 622, 554, 494, 466, 415, 370, 330, 311, 277  
 };
 
 static int note_frequency_hz(int slot, int accidental)
 {
     if (slot < 0 || slot >= 11) return 0;
-
     switch (accidental) {
     case ACC_SHARP:   return pitch_freq_slot_sharp[slot];
     case ACC_FLAT:    return pitch_freq_slot_flat[slot];
@@ -217,27 +141,9 @@ static int note_frequency_hz(int slot, int accidental)
 
 /* ═══════════════════════════════════════════════════════════════════════
    Audio timing
-   ─────────────────────────────────────────────────────────────────────
-   Sample rate: 8000 Hz  (set by the WM8731 core on DE-series boards)
-   Tempo:       120 BPM  -> quarter note = 0.5 s = 4000 samples
-
-   duration_64 values (from vga_music_v2.c):
-     whole      = 64  ->  64 * 250 = 16000 samples  (2.0 s)
-     half       = 32  ->  32 * 250 =  8000 samples  (1.0 s)
-     quarter    = 16  ->  16 * 250 =  4000 samples  (0.5 s)
-     beam2_8th  = 16  ->  16 * 250 =  4000 total, 2000/head
-     beam4_16th = 16  ->  16 * 250 =  4000 total, 1000/head
-     beam2_16th =  8  ->   8 * 250 =  2000 total, 1000/head
-     single16th =  4  ->   4 * 250 =  1000 samples
-
-   SAMPS_PER_64 = QUARTER_SAMPS / 16 = 250
-   total_samples = duration_64 * SAMPS_PER_64
    ═══════════════════════════════════════════════════════════════════════ */
 #define FS_HZ          8000
 
-/* Tempo is controlled by toolbar_state.bpm.
-   quarter_samples = FS * 60 / bpm
-   samples_per_64  = quarter_samples / 16 */
 static int quarter_samples_current(void)
 {
     int bpm = toolbar_state.bpm;
@@ -250,21 +156,14 @@ static int samples_per_64_current(void)
     return quarter_samples_current() / 16;
 }
 
-/*
- * Square-wave amplitude.
- * The WM8731 DAC is 24-bit signed.  MAX24 = 0x7FFFFF.
- * Use 75 % of full scale so mixing multiple oscillators doesn't clip badly
- * before the clamp.  (Matches the approach in the lab square-wave example.)
- */
 #define SQ_AMP  0x600000
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Visual — playhead geometry
+   Visual - playhead geometry
    ═══════════════════════════════════════════════════════════════════════ */
 #define PLAYHEAD_COLOR  ((short int)0x07E0)   /* bright green RGB565 */
 #define PLAYHEAD_W      2                     /* pixels each side of centre */
 
-/* Extend playhead to cover the extra slots above and below the staff lines */
 #define PH_Y_TOP(s)  (staff_top[s] - (STAFF_SPACING / 2) - 2)
 #define PH_Y_BOT(s)  (staff_top[s] + (LINES_PER_STAFF - 1) * STAFF_SPACING + (STAFF_SPACING / 2) + 2)
 #define PH_HEIGHT    (PH_Y_BOT(0) - PH_Y_TOP(0) + 1)
@@ -274,7 +173,7 @@ static int samples_per_64_current(void)
 static short int ph_save[PH_SAVE_H][PH_SAVE_W];
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Grid helper
+   Grid & Pixel helpers
    ═══════════════════════════════════════════════════════════════════════ */
 static int col_to_x_audio(int col)
 {
@@ -283,9 +182,6 @@ static int col_to_x_audio(int col)
     return STAFF_X0 + col * STEP_W + STEP_W / 2;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Pixel helpers
-   ═══════════════════════════════════════════════════════════════════════ */
 static void audio_plot(int x, int y, short int c)
 {
     if (x < 0 || x >= FB_WIDTH)  return;
@@ -301,7 +197,7 @@ static short int audio_read_pixel(int x, int y)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Playhead draw / erase  — safe pixel save & restore
+   Playhead draw / erase
    ═══════════════════════════════════════════════════════════════════════ */
 static int ph_px;
 static int ph_s;
@@ -342,26 +238,12 @@ static void erase_playhead(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Square-wave oscillator  — phase accumulator (DDS)
-   ─────────────────────────────────────────────────────────────────────
-   Uses a 32-bit phase accumulator instead of a half-period counter.
-   This eliminates the integer-truncation tuning error that plagues the
-   half-period method at low sample rates (8 kHz).
-
-   How it works:
-     phase_inc = (freq << 16) / FS_HZ        (Q16 fixed-point)
-     Each tick:  phase += phase_inc  (wraps naturally at 2^16)
-     Output = +SQ_AMP when phase < 0x8000, -SQ_AMP otherwise.
-
-   Error analysis vs. old half-period method at 8000 Hz:
-     A4 440 Hz:  old → 444 Hz (+16 cents), new → 440 Hz (< 0.1 cent)
-     G5 784 Hz:  old → 800 Hz (+35 cents), new → 784 Hz (< 0.1 cent)
+   Oscillator & Sampling
    ═══════════════════════════════════════════════════════════════════════ */
-
 typedef struct {
     int      freq;
     uint32_t phase;
-    uint32_t phase_inc;   /* Q16: (freq << 16) / FS_HZ */
+    uint32_t phase_inc;   
 } Osc;
 
 static void osc_init(Osc *o, int freq)
@@ -378,18 +260,11 @@ static int32_t osc_tick(Osc *o)
 {
     int32_t out;
     if (o->freq == 0 || o->phase_inc == 0) return 0;
-    /* Square: high for first half of cycle, low for second half */
     out = (o->phase < 0x8000u) ? (int32_t)SQ_AMP : -(int32_t)SQ_AMP;
     o->phase = (o->phase + o->phase_inc) & 0xFFFFu;
     return out;
 }
 
-/*
- * play_note_sound
- * Push `num_samples` samples for one oscillator into the audio FIFO.
- * Follows the exact lab square-wave pattern:
- *   wait for space -> write ldata -> write rdata
- */
 static void play_note_sound(volatile audio_t *audiop, Osc *osc, int num_samples)
 {
     int     t;
@@ -403,11 +278,6 @@ static void play_note_sound(volatile audio_t *audiop, Osc *osc, int num_samples)
     }
 }
 
-/*
- * silence
- * Push `num_samples` zero-samples so the timeline stays in sync when a
- * column has no note on the current staff.
- */
 static void silence(volatile audio_t *audiop, int num_samples)
 {
     int t;
@@ -419,18 +289,6 @@ static void silence(volatile audio_t *audiop, int num_samples)
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Piano sample helpers
-   ─────────────────────────────────────────────────────────────────────
-   Streams a pre-computed int16 sample array into the audio FIFO.
-   If the sample is shorter than num_samples we loop it (for long notes);
-   if longer we truncate.  Amplitude is scaled to 24-bit signed range.
-
-   The sample arrays are generated at 8 kHz to match FS_HZ, so no
-   further resampling is needed here.  Pitch accuracy is determined by
-   the pitch-shifting done at compile time in piano_samples.h.
-   ═══════════════════════════════════════════════════════════════════════ */
-
 static void play_piano_buf(volatile audio_t *audiop,
                            const int16_t *buf, int buf_len,
                            int num_samples)
@@ -439,14 +297,8 @@ static void play_piano_buf(volatile audio_t *audiop,
     for (t = 0; t < num_samples; t++) {
         int32_t s;
         if (buf_len > 0) {
-            /* Loop the sample if note duration exceeds sample length */
             int idx = t % buf_len;
-            /* int16 range: -32768..32767
-               Beep uses SQ_AMP = 0x600000 (75% of 24-bit full scale = 8388607).
-               Scale: s = sample * 0x600000 / 32768
-                        = sample * 192   (exact integer multiply, no overflow risk:
-                          32767 * 192 = 6,291,264 fits easily in int32_t)        */
-            s = (int32_t)buf[idx] * 1024; // changed 2 be louder, prev was 192
+            s = (int32_t)buf[idx] * 256; 
             s = clamp24(s);
         } else {
             s = 0;
@@ -458,10 +310,6 @@ static void play_piano_buf(volatile audio_t *audiop,
     }
 }
 
-/*
- * get_piano_buf — select the right sample array for a given slot+accidental.
- * Sets *out_buf and *out_len.  Uses reverb tables when reverb=1.
- */
 static void get_piano_buf(int slot, int accidental, int reverb,
                            const int16_t **out_buf, int *out_len)
 {
@@ -502,34 +350,16 @@ static void get_piano_buf(int slot, int accidental, int reverb,
 
 /* ═══════════════════════════════════════════════════════════════════════
    play_column
-   ─────────────────────────────────────────────────────────────────────
-   Sound every note-head whose head_step[h] == col on staff s.
-
-   PITCH FIX:
-     Frequency comes from pitch_freq_slot[slot] (slot 0-8 only).
-     Staff position has NO effect on pitch — it only controls timing.
-     Every staff uses the same 9-note scale so the same slot always
-     sounds the same note regardless of which bar it is placed in.
-
-   DURATION FIX:
-     Each note type carries duration_64 (stored in the Note struct).
-     We convert: samples = duration_64 * SAMPS_PER_64.
-     Beamed groups split equally across their heads:
-       per_head_samples = total_samples / num_heads.
-
-     At 120 BPM (SAMPS_PER_64 = 250):
-       Whole  (64) = 16000 samples   Half    (32) = 8000
-       Quarter(16) =  4000 samples   8th      (8) = 2000/head
-       16th    (4) =  1000 samples
    ═══════════════════════════════════════════════════════════════════════ */
 static void play_column(volatile audio_t *audiop, int col, int s)
 {
     int i, h;
     int found = 0;
-    int inst = toolbar_state.instrument;  /* TB_INST_BEEP / _PIANO / _PIANO_REVERB */
+    int inst = toolbar_state.instrument;
 
     for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != s) continue;
+        /* Only check notes on the currently active page and staff */
+        if (notes[i].staff != s || notes[i].page != cur_page) continue;
 
         for (h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] != col) continue;
@@ -543,13 +373,11 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 if (notes[i].note_type == NOTE_REST) {
                     silence(audiop, head_s);
                 } else if (inst == TB_INST_BEEP) {
-                    /* ── Original square-wave synthesiser ── */
                     Osc osc;
                     int freq = note_frequency_hz(slot, notes[i].accidental);
                     osc_init(&osc, freq);
                     play_note_sound(audiop, &osc, head_s);
                 } else {
-                    /* ── Sampled piano (with or without reverb) ── */
                     const int16_t *buf;
                     int            buf_len;
                     int reverb = (inst == TB_INST_PIANO_REVERB) ? 1 : 0;
@@ -559,30 +387,16 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 }
                 found = 1;
             }
-            break; /* one head per note can match a given column */
+            break; 
         }
     }
 
-    /* If no note fired this column, fill with silence so the grid
-       column still takes up its full quarter-note time slot. */
     if (!found)
         silence(audiop, quarter_samples_current());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   play_sequence  — public entry point, called from vga_music_v2.c
-   ─────────────────────────────────────────────────────────────────────
-   Iterates staff 0->3, column 1->15.  For each column the playhead is
-   drawn, audio is synthesised for EXACTLY the note's duration (or one
-   quarter's worth of silence if the column is empty), then the playhead
-   is erased.
-
-   Notes longer than one quarter (half, whole) play out their full
-   duration inside play_column — the playhead stays on that column until
-   the sound finishes, then advances.  This is musically correct: a whole
-   note held for 2 s looks like a stationary playhead for 2 s.
-
-   FIFO-clear fix: assert CW|CR then immediately de-assert (write 0).
+   play_sequence
    ═══════════════════════════════════════════════════════════════════════ */
 void play_sequence(void)
 {
@@ -590,32 +404,26 @@ void play_sequence(void)
     volatile int *ps2 = (volatile int *)0xFF200100; /* PS2_BASE */
     int s, col;
     
-    /* Playback state flags */
-    int is_playing;
-    int is_paused;
-    int got_break = 0;
     int restart_seq;
+    int got_break = 0;
 
-    /* Wrap the entire engine in a loop so R can trigger a reset */
     do {
-        /* Reset all flags for a fresh start */
         restart_seq = 0;
-        is_playing = 1;
-        is_paused = 0;
+        seq_is_playing = 1;
+        seq_is_paused = 0;
 
-        /* Pulse the FIFO-clear bits to reset audio buffers */
-        audiop->control = 0x3;
+        /* CRITICAL AUDIO FIX: 
+           0xC (Bits 3 & 2) clears the old, stale audio.
+           0x0 disables interrupts for safe polling mode. */
+        audiop->control = 0xC;
         audiop->control = 0x0;
 
         for (s = 0; s < NUM_STAVES; s++) {
-            if (!is_playing || restart_seq) break; 
+            if (!seq_is_playing || restart_seq) break; 
 
             for (col = FIRST_COL; col < TOTAL_COLS; col++) {
-                if (!is_playing || restart_seq) break; 
+                if (!seq_is_playing || restart_seq) break; 
 
-                /* =========================================
-                   1. Keyboard Polling (Play/Pause/Stop/Restart)
-                   ========================================= */
                 while (1) {
                     int raw = *ps2;
                     
@@ -623,44 +431,42 @@ void play_sequence(void)
                         unsigned char b = (unsigned char)(raw & 0xFF);
 
                         if (b == 0xE0) continue;
-                        if (b == 0xF0) { got_break = 1; continue; } /* KEY_BREAK */
+                        if (b == 0xF0) { got_break = 1; continue; } 
                         if (got_break) { got_break = 0; continue; }
 
-                        /* Q Key (Play / Resume) */
                         if (b == 0x15) { 
-                            is_paused = 0; 
+                            seq_is_paused = 0; 
+                            draw_toolbar(cur_note_type);
                         }
-                        /* E Key (Pause) */
                         if (b == 0x24) { 
-                            is_paused = 1; 
+                            seq_is_paused = 1; 
+                            draw_toolbar(cur_note_type);
                         }
-                        /* T Key (Stop) */
                         if (b == 0x2C) { 
-                            is_playing = 0;
-                            is_paused = 0; 
+                            seq_is_playing = 0;
+                            seq_is_paused = 0; 
                         }
-                        /* R Key (Restart) */
                         if (b == 0x2D) {
                             restart_seq = 1;
-                            is_paused = 0; /* Force break to restart */
+                            seq_is_paused = 0; 
                         }
                     }
 
-                    if (!is_paused) {
-                        break;
-                    }
+                    if (!seq_is_paused) break;
                 }
 
-                /* Catch the stop or restart before playing the note */
-                if (!is_playing || restart_seq) break; 
+                if (!seq_is_playing || restart_seq) break; 
 
-                /* =========================================
-                   2. Standard Audio & UI Execution
-                   ========================================= */
                 draw_playhead(col, s);
                 play_column(audiop, col, s);
                 erase_playhead();
             }
         }
-    } while (restart_seq); /* If R was pressed, loop back to the top! */
+    } while (restart_seq); 
+    
+    /* Final cleanup */
+    audiop->control = 0xC;
+    audiop->control = 0x0;
+
+    seq_is_playing = 0;
 }
