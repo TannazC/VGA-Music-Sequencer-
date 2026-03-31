@@ -249,20 +249,29 @@ void draw_toolbar(int cur_note_type) {
    Row 2: Accidentals & Actions
    ======================================================================= */
 void draw_toolbar_row2(int cur_accidental) {
-    int x = 4;
+        
     tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_BG);
     tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_DIV);
+    int x = 4;
+    int split_x = x + 38;
+    int badge_y = ROW2_Y + 2;
+    tb_badge_at(x, ROW2_Y, 52, "", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
+    tb_vline(split_x, badge_y + 3, badge_y + BADGE_H - 3, COLOR_BLACK);
+    tb_draw_string(x + 5, badge_y + 3, "CLEAR", COLOR_WHITE);
+    tb_draw_string(split_x + 5, badge_y + 3, "N", COLOR_WHITE);
+    x += 52 + BADGE_GAP;
+    x += GROUP_SEP/2; 
+    tb_group_div(x, ROW2_Y); 
+    x += GROUP_SEP/2;
 
     const char* acc_labels[] = {"Z", "X", "C", "V"}; 
     for(int i = 0; i < 4; i++) {
         short int fill = (i == cur_accidental) ? COLOR_FUCHSIA : COLOR_WHITE;
         short int txt  = (i == cur_accidental) ? COLOR_WHITE : COLOR_BLACK;
-        x = tb_badge_at(x, ROW2_Y, 18, acc_labels[i], fill, txt) + BADGE_GAP;
+        x = tb_badge_at(x, ROW2_Y, 14, acc_labels[i], fill, txt) + BADGE_GAP;
     }
     
-    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
-    /* Only the Clear action remains here now */
-    tb_badge_at(x, ROW2_Y, 46, "N: CLR", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
+
 }
 
 /* =======================================================================
