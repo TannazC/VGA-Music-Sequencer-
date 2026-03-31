@@ -62,7 +62,7 @@ static inline int32_t clamp24(int32_t x)
 #define SLOTS_PER_STAFF  ((LINES_PER_STAFF - 1) * 2 + 3)   /* 11 */
 #define TOTAL_ROWS       (NUM_STAVES * SLOTS_PER_STAFF)     /* 44 */
 #define TOTAL_COLS       NUM_STEPS                          /* 16 */
-#define FIRST_COL        2   /* cols 0-1 overlap treble clef */
+#define FIRST_COL        1   /* cols 0-1 overlap treble clef */
 
 /* =======================================================================
    Note struct  (must be identical to main.c)
