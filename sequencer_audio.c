@@ -163,7 +163,7 @@ static int samples_per_64_current(void)
     return quarter_samples_current() / 16;
 }
 
-#define SQ_AMP  0x600000
+#define SQ_AMP  0x7A0000
 
 /* ═══════════════════════════════════════════════════════════════════════
    Visual - playhead geometry

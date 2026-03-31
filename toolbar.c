@@ -264,13 +264,31 @@ void draw_toolbar_row2(int cur_accidental) {
     tb_group_div(x, ROW2_Y); 
     x += GROUP_SEP/2;
 
+    /* Accidental badges: Z X C V */
     const char* acc_labels[] = {"Z", "X", "C", "V"}; 
     for(int i = 0; i < 4; i++) {
         short int fill = (i == cur_accidental) ? COLOR_FUCHSIA : COLOR_WHITE;
         short int txt  = (i == cur_accidental) ? COLOR_WHITE : COLOR_BLACK;
         x = tb_badge_at(x, ROW2_Y, 14, acc_labels[i], fill, txt) + BADGE_GAP;
     }
-    
+
+    x += GROUP_SEP/2;
+    tb_group_div(x, ROW2_Y);
+    x += GROUP_SEP/2;
+
+    /* Arrow key badges: up/down/left/right cursor movement */
+    x = tb_badge_at(x, ROW2_Y, 14, "^", COLOR_CITRIC, COLOR_BLACK) + BADGE_GAP;
+    x = tb_badge_at(x, ROW2_Y, 14, "v", COLOR_CITRIC, COLOR_BLACK) + BADGE_GAP;
+    x = tb_badge_at(x, ROW2_Y, 14, "<", COLOR_CITRIC, COLOR_BLACK) + BADGE_GAP;
+    x = tb_badge_at(x, ROW2_Y, 14, ">", COLOR_CITRIC, COLOR_BLACK) + BADGE_GAP;
+
+    x += GROUP_SEP/2;
+    tb_group_div(x, ROW2_Y);
+    x += GROUP_SEP/2;
+
+    /* Page nav badges: << >> */
+    x = tb_badge_at(x, ROW2_Y, 20, "<<", COLOR_MUTED_NEON_BLUE, COLOR_WHITE) + BADGE_GAP;
+    x = tb_badge_at(x, ROW2_Y, 20, ">>", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
 
 }
 
@@ -334,24 +352,51 @@ static void menu_draw_row(int y, const char *label, const char *key, short int f
 }
 
 void draw_options_menu(void) {
-    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER); // Shadow
+    /* Shadow */
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER);
+    /* Outer border */
     tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
+    /* Inner background */
     tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
 
-    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS", TB_PAUSE_FILL);
+    tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
+
+    /* Row 1: Change Instrument */
+    menu_draw_row(MENU_Y0 + 45, "CHANGE INSTRUMENT", "1", TB_PLAY_FILL,  COLOR_WHITE, 0);
+    /* Row 2: Add a Page (not yet implemented — greyed out) */
+    menu_draw_row(MENU_Y0 + 70, "<ADD PAGE>",        "2", COLOR_GRAY,    COLOR_WHITE, 0);
+    /* Row 3: Go Back */
+    menu_draw_row(MENU_Y0 + 95, "GO BACK",           "3", TB_STOP_FILL,  COLOR_WHITE, 0);
+
+    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+}
+
+void draw_instrument_menu(void) {
+    /* Shadow */
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER);
+    /* Outer border */
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
+    /* Inner background */
+    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
+
+    tb_draw_string(MENU_X0 + 35, MENU_Y0 + 10, "INSTRUMENT", TB_PAUSE_FILL);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
     int inst = toolbar_state.instrument;
-    menu_draw_row(MENU_Y0 + 45, "BEEP",   "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_Y0 + 70, "PIANO",  "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_Y0 + 95, "REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
-    
+    /* Row 1: Beep */
+    menu_draw_row(MENU_Y0 + 45, "BEEP",    "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    /* Row 2: Piano */
+    menu_draw_row(MENU_Y0 + 70, "PIANO",   "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    /* Row 3: Go Back */
+    menu_draw_row(MENU_Y0 + 95, "GO BACK", "3", TB_STOP_FILL,  COLOR_WHITE, 0);
+
     tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 
 void toolbar_set_instrument(int inst) {
     toolbar_state.instrument = inst;
-    draw_options_menu();
+    draw_instrument_menu();
 }
 
 void toolbar_set_bpm(int bpm) {

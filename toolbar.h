@@ -73,6 +73,11 @@
 #define MENU_X1  250
 #define MENU_Y1  200
 
+/* -- Menu state constants -- */
+#define MENU_CLOSED       0   /* Menu is not open                  */
+#define MENU_MAIN         1   /* Top-level options menu            */
+#define MENU_INSTRUMENT   2   /* Instrument sub-menu               */
+
 /* -- Global toolbar state -- */
 typedef struct {
     int instrument; /* TB_INST_BEEP / _PIANO / _PIANO_REVERB */
@@ -101,8 +106,11 @@ void toolbar_set_bpm(int bpm);
 /* Highlights the currently selected instrument inside the pop-up menu */
 void toolbar_set_instrument(int inst);
 
-/* Draws the centered instrument-selection pop-up menu */
+/* Draws the top-level options menu (Change Instrument / Add Page / Go Back) */
 void draw_options_menu(void);
+
+/* Draws the instrument sub-menu (Beep / Piano / Go Back) */
+void draw_instrument_menu(void);
 
 /* Draws the page count (e.g., "PAGE 1/1") at the bottom right */
 void draw_page_indicator(int cur_page, int max_pages);
