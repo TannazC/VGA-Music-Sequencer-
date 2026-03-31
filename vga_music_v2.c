@@ -1159,6 +1159,12 @@ int main(void) {
     
     keyboard_init();
 
+restart_main_menu:
+    /* Reset all sequencer state for a clean restart */
+    num_notes = 0;
+    cur_page  = 1;
+    max_pages = 1;
+
     draw_start_screen();
     {
         int got_break_start = 0;
@@ -1203,6 +1209,11 @@ int main(void) {
             if (b == KEY_3) { g_song_selection = 3; update_song_selection(g_song_selection); g_start_screen_active = 0; }
             if (b == KEY_4) { g_song_selection = 4; update_song_selection(g_song_selection); g_start_screen_active = 0; }
             if (b == KEY_SPACE) { g_start_screen_active = 0; }
+            /* [5] BACK — return to main menu */
+            if (b == KEY_5) {
+                g_start_selection = 1;
+                goto restart_main_menu;
+            }
         }
     }
 
@@ -1279,15 +1290,10 @@ int main(void) {
                     continue;
                 }
                 if (b == KEY_2) {
-                    /* Go back to main menu (close popup, return to start screen) */
+                    /* Return to main menu */
                     menu_open = 0;
                     menu_state = MENU_STATE_MAIN;
-                    for (int my = MENU_Y0; my <= MENU_Y1 + 4; my++)
-                        for (int mx = MENU_X0; mx <= MENU_X1 + 4; mx++)
-                            plot_pixel(mx, my, bg[my][mx]);
-                    redraw_all_notes();
-                    draw_cursor_cell(cur_x, cur_y);
-                    continue;
+                    goto restart_main_menu;
                 }
             } else if (menu_state == MENU_STATE_INSTRUMENT) {
                 if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP);  continue; }

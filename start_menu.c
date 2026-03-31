@@ -273,10 +273,11 @@ void update_start_selection(int active_opt) {
    Song-select submenu  (appears after choosing option 2)
    ================================================================= */
 void update_song_selection(int active_opt) {
-    draw_option(50, 105, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
-    draw_option(50, 131, 220, 22, '2', "O CANADA",            (active_opt == 2));
-    draw_option(50, 157, 220, 22, '3', "STAR SPANGLED BANNER",(active_opt == 3));
-    draw_option(50, 183, 220, 22, '4', "YA TAB TAB WADELLAH", (active_opt == 4));
+    draw_option(50,  99, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
+    draw_option(50, 123, 220, 22, '2', "O CANADA",            (active_opt == 2));
+    draw_option(50, 147, 220, 22, '3', "STAR SPANGLED BANNER",(active_opt == 3));
+    draw_option(50, 171, 220, 22, '4', "YA TAB TAB WADELLAH", (active_opt == 4));
+    draw_option(50, 201, 220, 22, '5', "BACK TO MAIN MENU",   0);
 }
 
 void draw_song_select_screen(void) {
@@ -287,13 +288,11 @@ void draw_song_select_screen(void) {
 
     draw_staff(14);
     draw_treble_clef(10, 14 - 6, COLOR_STAFF);
-    draw_staff(210);
-    draw_treble_clef(10, 210 - 6, COLOR_STAFF);
 
     draw_custom_logo_bitmap(1.5);
 
-    draw_hline(50, 95, 220, COLOR_SPEARMINT);
-    draw_string_centered(SCREEN_W / 2, 98, "SELECT A SONG", 1, COLOR_SPEARMINT);
+    draw_hline(50, 90, 220, COLOR_SPEARMINT);
+    draw_string_centered(SCREEN_W / 2, 93, "SELECT A SONG", 1, COLOR_SPEARMINT);
 
     update_song_selection(g_song_selection);
 }
