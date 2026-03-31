@@ -368,21 +368,22 @@ void draw_options_menu(void) {
 }
 
 void draw_options_menu_instrument(void) {
-    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER); /* Shadow */
-    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
-    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
+    /* Instrument submenu is taller than the main menu — define a local bottom */
+    int iy1 = MENU_Y0 + 175;
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, iy1 + 4, TB_BORDER); /* Shadow */
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, iy1, COLOR_BLACK);
+    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, iy1 - 2, TB_BG);
 
     tb_draw_string(MENU_X0 + 30, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PAUSE_FILL);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
     int inst = toolbar_state.instrument;
-    menu_draw_row(MENU_Y0 + 45, "BEEP",       "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_Y0 + 70, "PIANO",      "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_Y0 + 95, "XYLOPHONE",  "3", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_XYLOPHONE);
-    menu_draw_row(MENU_Y0 +120, "TUBA",       "4", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_TUBA);
-    menu_draw_row(MENU_Y0 +145, "BACK",       "5", TB_REST_FILL,  COLOR_BLACK, 0);
+    menu_draw_row(MENU_Y0 + 45, "BEEP",      "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    menu_draw_row(MENU_Y0 + 70, "PIANO",     "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    menu_draw_row(MENU_Y0 + 95, "XYLOPHONE", "3", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_XYLOPHONE);
+    menu_draw_row(MENU_Y0 +120, "TUBA",      "4", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_TUBA);
 
-    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+    tb_draw_string(MENU_X0 + 32, iy1 - 18, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 
 void toolbar_set_instrument(int inst) {
