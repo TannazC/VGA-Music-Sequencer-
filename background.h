@@ -15,7 +15,7 @@
 #define STAFF_X1       (FB_WIDTH - 10)
 
 // snap_to_step parameters
-#define NUM_STEPS   16
+#define NUM_STEPS   17
 #define STEP_W      ((STAFF_X1 - STAFF_X0) / NUM_STEPS)
 /* Shared across background.c and vga_music_v2.c */
 extern const int staff_top[NUM_STAVES];

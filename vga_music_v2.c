@@ -676,7 +676,7 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
     int h;
     int nh = note_num_heads[nt];
 
-    if (cur_col < 2 || cur_col + nh - 1 >= TOTAL_COLS) return;  
+    if (cur_col < 1 || cur_col + nh - 1 >= TOTAL_COLS) return;  
 
     for (h = 0; h < nh; h++) {
         if (col_is_occupied(cur_col + h, cur_staff)) return;
@@ -816,6 +816,91 @@ static void switch_page(int new_page, int cur_x, int cur_y) {
     redraw_all_notes();
     draw_cursor_cell(cur_x, cur_y);
 }
+/* =======================================================================
+   Preload Song Logic (Ode to Joy)
+   ======================================================================= */
+static void inject_note(int col, int staff, int slot, int nt, int page) {
+    if (num_notes >= MAX_NOTES) return;
+    Note *n = &notes[num_notes];
+    n->step = col;
+    n->staff = staff;
+    n->pitch_slot = slot;
+    n->note_type = nt;
+    n->duration_64 = note_duration_64[nt];
+    n->accidental = ACC_NONE;
+    n->page = page;
+    
+    int sx = col_to_x(col);
+    int sy = row_to_y(staff * SLOTS_PER_STAFF + slot, NULL, NULL);
+    
+    n->screen_x = sx;
+    n->screen_y = sy;
+    
+    int nh = note_num_heads[nt];
+    n->num_heads = nh;
+    for (int i = 0; i < nh; i++) {
+        n->head_step[i]       = col + i;           
+        n->head_pitch_slot[i] = slot;              
+        n->head_x[i]          = sx + i * STEP_W;  
+        n->head_y[i]          = sy;                
+    }
+    for (int i = nh; i < MAX_HEADS; i++) {
+        n->head_step[i] = 0;
+        n->head_pitch_slot[i] = 0;
+        n->head_x[i] = 0;
+        n->head_y[i] = 0;
+    }
+    num_notes++;
+}
+
+static void preload_song(void) {
+    num_notes = 0;
+    
+    /* Ode to Joy: 64 total grid placements.
+       With 16 columns per staff, this perfectly fills all 4 staves on Page 1!
+    */
+    int song_slots[] = {
+        /* Phrase 1 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3, 
+        /* Phrase 2 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4, 
+        /* Phrase 3 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7, 
+        /* Phrase 4 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4  
+    };
+    
+    int song_types[] = {
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+        
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST
+    };
+    
+    int i;
+    for (i = 0; i < 64; i++) {
+        int staff = i / 16;       /* Wraps to the next staff exactly every 16 notes */
+        int col   = (i % 16) + 1; /* Starts safely past the clef at col 1 */
+        int page  = 1;            /* Fills up Page 1 */
+        
+        inject_note(col, staff, song_slots[i], song_types[i], page);
+    }
+
+    /* Optimal settings for this song */
+    toolbar_state.instrument = TB_INST_PIANO_REVERB;
+    toolbar_state.bpm = 160; 
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Main Loop
@@ -848,18 +933,26 @@ int main(void) {
         }
     }
 
+    
+
+    /* Trigger the preload if the user selected option 2 */
+    if (g_start_selection == 2) {
+        preload_song();
+    }
+
     build_and_draw_background();
     safe_draw_toolbar(cur_note_type);
     safe_draw_row2(cur_accidental);
     update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
 
-    int cur_col   = 2;  
+    int cur_col   = 1;  
     int cur_row   = 0;
     int cur_staff = 0;
     int cur_slot  = 0;
     int cur_x     = col_to_x(cur_col);
     int cur_y     = row_to_y(cur_row, &cur_staff, &cur_slot);
 
+    redraw_all_notes();
     draw_cursor_cell(cur_x, cur_y);
     pixel_buffer_start = *pixel_ctrl;
 
@@ -883,7 +976,8 @@ int main(void) {
                 for (int my = MENU_Y0; my <= MENU_Y1 + 4; my++)
                     for (int mx = MENU_X0; mx <= MENU_X1 + 4; mx++)
                         plot_pixel(mx, my, bg[my][mx]);
-                redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+                redraw_all_notes();
+                draw_cursor_cell(cur_x, cur_y);
             } else {
                 menu_open = 1; 
                 g_drawing_ui = 1; 
@@ -906,32 +1000,22 @@ int main(void) {
             continue;   
         }
 
-        /* FIXED argument mismatches here: Added cur_page, max_pages to calls */
-        if (b == KEY_1){cur_note_type = NOTE_WHOLE;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_2){cur_note_type = NOTE_HALF;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_3){cur_note_type = NOTE_QUARTER;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_4) { cur_note_type = NOTE_BEAM2_8TH;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_5) { cur_note_type = NOTE_BEAM4_16TH;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_6) { cur_note_type = NOTE_BEAM2_16TH; 
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue; }
-        if (b == KEY_7) { cur_note_type = NOTE_SINGLE16TH;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue;}
-        if (b == KEY_8) { cur_note_type = NOTE_REST;
-                        cur_accidental = ACC_NONE;
-                        safe_set_note_type(cur_note_type);
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); continue;}
+        int is_note_key = (b == KEY_1 || b == KEY_2 || b == KEY_3 || b == KEY_4 || 
+                           b == KEY_5 || b == KEY_6 || b == KEY_7 || b == KEY_8);
+        if (is_note_key) {
+            if (b == KEY_1) cur_note_type = NOTE_WHOLE;
+            if (b == KEY_2) cur_note_type = NOTE_HALF;
+            if (b == KEY_3) cur_note_type = NOTE_QUARTER;
+            if (b == KEY_4) cur_note_type = NOTE_BEAM2_8TH;
+            if (b == KEY_5) cur_note_type = NOTE_BEAM4_16TH;
+            if (b == KEY_6) cur_note_type = NOTE_BEAM2_16TH;
+            if (b == KEY_7) cur_note_type = NOTE_SINGLE16TH;
+            if (b == KEY_8) { cur_note_type = NOTE_REST; cur_accidental = ACC_NONE; safe_draw_row2(0); }
+            
+            safe_set_note_type(cur_note_type);
+            update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+            continue;
+        }
 
         if (b == KEY_Q || b == KEY_R) {
             if (b == KEY_R) seq_is_playing = 0; 
@@ -1036,7 +1120,7 @@ int main(void) {
 
             if (b == KEY_W && cur_row > 0)              new_row--;
             if (b == KEY_S && cur_row < TOTAL_ROWS - 1) new_row++;
-            if (b == KEY_A && cur_col > 2)              new_col--; 
+            if (b == KEY_A && cur_col > 1)              new_col--; 
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) new_col++;
 
             if (new_col != cur_col || new_row != cur_row) {
