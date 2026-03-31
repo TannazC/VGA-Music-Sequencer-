@@ -61,6 +61,8 @@ volatile int g_drawing_ui = 0;
 /* FIXED: Audio transport flags added back in so main() can control playback */
 volatile int seq_is_playing = 0;
 volatile int seq_is_paused = 0;
+volatile int seq_user_stopped = 0;
+volatile int seq_user_restarted = 0;
 
 #define UI_SAFE_ZONE 46
 
@@ -816,8 +818,9 @@ static void switch_page(int new_page, int cur_x, int cur_y) {
     redraw_all_notes();
     draw_cursor_cell(cur_x, cur_y);
 }
+
 /* =======================================================================
-   Preload Song Logic (Ode to Joy)
+   Preload Song Logic (Ode to Joy - 2 Full Pages!)
    ======================================================================= */
 static void inject_note(int col, int staff, int slot, int nt, int page) {
     if (num_notes >= MAX_NOTES) return;
@@ -856,17 +859,46 @@ static void inject_note(int col, int staff, int slot, int nt, int page) {
 static void preload_song(void) {
     num_notes = 0;
     
-    /* Ode to Joy: 64 total grid placements.
-       With 16 columns per staff, this perfectly fills all 4 staves on Page 1!
+    /* Ode to Joy: 128 total grid placements across 2 Pages!
+       With 16 columns per staff, this perfectly fills both pages.
     */
     int song_slots[] = {
+        /* PAGE 1 */
         /* Phrase 1 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3, 
         /* Phrase 2 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4, 
         /* Phrase 3 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7, 
-        /* Phrase 4 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4  
+        /* Phrase 4 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4,
+        
+        /* PAGE 2 */
+        /* Phrase 5 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3, 
+        /* Phrase 6 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4, 
+        /* Phrase 7 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7, 
+        /* Phrase 8 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4  
     };
     
     int song_types[] = {
+        /* PAGE 1 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+        
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        /* PAGE 2 */
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
@@ -888,11 +920,10 @@ static void preload_song(void) {
         NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST
     };
     
-    int i;
-    for (i = 0; i < 64; i++) {
-        int staff = i / 16;       /* Wraps to the next staff exactly every 16 notes */
+    for (int i = 0; i < 128; i++) {
+        int page  = (i / 64) + 1; /* First 64 on page 1, next 64 on page 2 */
+        int staff = (i % 64) / 16;
         int col   = (i % 16) + 1; /* Starts safely past the clef at col 1 */
-        int page  = 1;            /* Fills up Page 1 */
         
         inject_note(col, staff, song_slots[i], song_types[i], page);
     }
@@ -932,8 +963,6 @@ int main(void) {
             if (b == KEY_SPACE) { g_start_screen_active = 0; }
         }
     }
-
-    
 
     /* Trigger the preload if the user selected option 2 */
     if (g_start_selection == 2) {
@@ -979,7 +1008,7 @@ int main(void) {
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open = 1; 
+                menu_open = 1;
                 g_drawing_ui = 1; 
                 draw_options_menu();
                 g_drawing_ui = 0;
@@ -1017,19 +1046,49 @@ int main(void) {
             continue;
         }
 
+        /* ── PAGE LOOPING AUDIO LOGIC ── */
         if (b == KEY_Q || b == KEY_R) {
-            if (b == KEY_R) seq_is_playing = 0; 
-            if (!seq_is_playing) {
-                seq_is_playing = 1;
-                seq_is_paused = 0;
+            int start_p = (b == KEY_R) ? 1 : cur_page;
+
+            while (1) {
+                if (cur_page != start_p) {
+                    switch_page(start_p, cur_x, cur_y);
+                }
+
                 toolbar_state.playback = TB_STATE_PLAYING;
                 safe_draw_toolbar(cur_note_type);
-                play_sequence(); 
-                toolbar_state.playback = TB_STATE_STOPPED;
-                safe_draw_toolbar(cur_note_type);
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
+
+                for (int p = start_p; p <= max_pages; p++) {
+                    if (cur_page != p) {
+                        switch_page(p, cur_x, cur_y);
+                    }
+
+                    seq_user_stopped = 0;
+                    seq_user_restarted = 0;
+                    seq_is_playing = 1;
+                    seq_is_paused = 0;
+
+                    play_sequence(); 
+
+                    if (seq_user_restarted || seq_user_stopped) {
+                        break;
+                    }
+                }
+
+                if (seq_user_restarted) {
+                    start_p = 1;
+                    continue; /* Restart the while(1) loop from page 1 */
+                }
+
+                /* If we get here, playback finished naturally or the user pressed T (Stop) */
+                break; 
             }
+
+            seq_is_playing = 0;
+            toolbar_state.playback = TB_STATE_STOPPED;
+            safe_draw_toolbar(cur_note_type);
+            redraw_all_notes();
+            draw_cursor_cell(cur_x, cur_y);
             continue;
         }
 

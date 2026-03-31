@@ -62,7 +62,7 @@ static inline int32_t clamp24(int32_t x)
 #define SLOTS_PER_STAFF  ((LINES_PER_STAFF - 1) * 2 + 3)   /* 11 */
 #define TOTAL_ROWS       (NUM_STAVES * SLOTS_PER_STAFF)     /* 44 */
 #define TOTAL_COLS       NUM_STEPS                          /* 16 */
-#define FIRST_COL        1   /* cols 0-1 overlap treble clef */
+#define FIRST_COL        2   /* cols 0-1 overlap treble clef */
 
 /* =======================================================================
    Note struct  (must be identical to main.c)
@@ -91,16 +91,23 @@ typedef struct {
 } Note;
 #endif /* NOTE_STRUCT_DEFINED */
 
-/* FIXED: Moved externs OUTSIDE the ifndef block so CPulator always sees them */
+/* Variables living in main.c that we need to read/write */
 extern Note      notes[MAX_NOTES];
 extern int       num_notes;
 extern int       pixel_buffer_start;
 extern short int bg[FB_HEIGHT][FB_WIDTH];
 extern int       cur_page;
+
+/* ADD THESE EXTERNS TO FIX YOUR RED SQUIGGLES IN VS CODE */
 extern int       cur_note_type; 
+extern void      safe_draw_toolbar(int nt); 
 
 extern volatile int seq_is_playing;
 extern volatile int seq_is_paused;
+
+/* ADD THESE TO TALK TO MAIN.C */
+extern volatile int seq_user_stopped;
+extern volatile int seq_user_restarted;
 
 /* ═══════════════════════════════════════════════════════════════════════
    Pitch table - slot 0 (top line, F5) -> slot 8 (bottom line, E4)
@@ -404,65 +411,57 @@ void play_sequence(void)
     volatile int *ps2 = (volatile int *)0xFF200100; /* PS2_BASE */
     int s, col;
     
-    int restart_seq;
     int got_break = 0;
 
-    do {
-        restart_seq = 0;
-        seq_is_playing = 1;
-        seq_is_paused = 0;
+    audiop->control = 0xC;
+    audiop->control = 0x0;
 
-        /* CRITICAL AUDIO FIX: 
-           0xC (Bits 3 & 2) clears the old, stale audio.
-           0x0 disables interrupts for safe polling mode. */
-        audiop->control = 0xC;
-        audiop->control = 0x0;
+    for (s = 0; s < NUM_STAVES; s++) {
+        if (!seq_is_playing) break; 
 
-        for (s = 0; s < NUM_STAVES; s++) {
-            if (!seq_is_playing || restart_seq) break; 
+        for (col = FIRST_COL; col < TOTAL_COLS; col++) {
+            if (!seq_is_playing) break; 
 
-            for (col = FIRST_COL; col < TOTAL_COLS; col++) {
-                if (!seq_is_playing || restart_seq) break; 
+            while (1) {
+                int raw = *ps2;
+                
+                if (raw & 0x8000) { 
+                    unsigned char b = (unsigned char)(raw & 0xFF);
 
-                while (1) {
-                    int raw = *ps2;
-                    
-                    if (raw & 0x8000) { 
-                        unsigned char b = (unsigned char)(raw & 0xFF);
+                    if (b == 0xE0) continue;
+                    if (b == 0xF0) { got_break = 1; continue; } 
+                    if (got_break) { got_break = 0; continue; }
 
-                        if (b == 0xE0) continue;
-                        if (b == 0xF0) { got_break = 1; continue; } 
-                        if (got_break) { got_break = 0; continue; }
-
-                        if (b == 0x15) { 
-                            seq_is_paused = 0; 
-                            draw_toolbar(cur_note_type);
-                        }
-                        if (b == 0x24) { 
-                            seq_is_paused = 1; 
-                            draw_toolbar(cur_note_type);
-                        }
-                        if (b == 0x2C) { 
-                            seq_is_playing = 0;
-                            seq_is_paused = 0; 
-                        }
-                        if (b == 0x2D) {
-                            restart_seq = 1;
-                            seq_is_paused = 0; 
-                        }
+                    if (b == 0x15) { 
+                        seq_is_paused = 0; 
+                        safe_draw_toolbar(cur_note_type);
                     }
-
-                    if (!seq_is_paused) break;
+                    if (b == 0x24) { 
+                        seq_is_paused = 1; 
+                        safe_draw_toolbar(cur_note_type);
+                    }
+                    if (b == 0x2C) { 
+                        seq_is_playing = 0;
+                        seq_is_paused = 0; 
+                        seq_user_stopped = 1; /* Notify main.c to break the page loop */
+                    }
+                    if (b == 0x2D) {
+                        seq_is_playing = 0;
+                        seq_is_paused = 0; 
+                        seq_user_restarted = 1; /* Notify main.c to restart at Page 1 */
+                    }
                 }
 
-                if (!seq_is_playing || restart_seq) break; 
-
-                draw_playhead(col, s);
-                play_column(audiop, col, s);
-                erase_playhead();
+                if (!seq_is_paused) break;
             }
+
+            if (!seq_is_playing) break; 
+
+            draw_playhead(col, s);
+            play_column(audiop, col, s);
+            erase_playhead();
         }
-    } while (restart_seq); 
+    }
     
     /* Final cleanup */
     audiop->control = 0xC;
