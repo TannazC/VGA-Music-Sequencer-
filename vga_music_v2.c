@@ -1699,6 +1699,16 @@ restart_main_menu:
                 }
                 if (b == KEY_3)
                 {
+                    toolbar_set_instrument(TB_INST_XYLOPHONE);
+                    continue;
+                }
+                if (b == KEY_4)
+                {
+                    toolbar_set_instrument(TB_INST_TUBA);
+                    continue;
+                }
+                if (b == KEY_5)
+                {
                     /* Go back to main options menu */
                     menu_state = MENU_STATE_MAIN;
                     g_drawing_ui = 1;
