@@ -944,100 +944,170 @@ static void preload_o_canada(void) {
     num_notes = 0;
 
     /*
-     * Bar 1:  G4-half  D5-qtr  E5-qtr
-     * Bar 2:  F#5-half  D5-half
-     * Bar 3:  D5-qtr  E5-qtr  F#5-qtr  G5-qtr
-     * Bar 4:  G5(A5)-whole
+     * Corrected O Canada notes (user-provided, durations from sheet music):
      *
-     * Bar 5:  G5-half  F#5-qtr  G5-qtr
-     * Bar 6:  E5-half  D5-half
-     * Bar 7:  E5-qtr  E5-qtr  D5-qtr  C5-qtr   (actually: E5 E5 D5 B4 in some arr.)
-     *         Reading sheet line 2 bar 7: E5-half  D5(dotq) 8th-group
-     * Bar 8:  beamed 8ths: D5 E5 F#5 G5  (uses BEAM2_8TH x2)
+     * Slot map: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+     * C#5 = slot 4 + ACC_SHARP
+     * F#5 = slot 1 + ACC_SHARP (not used here)
      *
-     * Bar 9:  D5(dotq) C5(8th)  B4(dotq) A4(8th)
-     * Bar 10: D5(dotq) C5(8th)  B4(dotq) A4(8th)
-     * Bar 11: D5(dotq) C5(8th)  16th-group B4 A4 G4 (approx qtr qtr)
-     * Bar 12: D5(dotq)  rest    rest   rest
+     * LINE 1 (Staff 0, measures 1-6):
+     *   M1: B4(h) D5(q) D5(q)            → 5 3 3 rest
+     *   M2: G4(q) A4(q) B4(q) C5(q)      → 7 6 5 4
+     *   M3: D5(q) A4(q)                  → wait, user: "B D D G A B C D / A(held)"
+     *   Re-reading: notes are B D D | G A B C D | A(whole) | B C# C# D E
+     *   M1(4/4): B4(h) D5(q) D5(q)       slots: 5 3 3 rest
+     *   M2(4/4): G4(q) A4(q) B4(q) C5(q) slots: 7 6 5 4
+     *   M3(4/4): D5(h) A4(h)             slots: 3 3 6 6
+     *   M4(4/4): A4(whole)               slots: 6 rest rest rest
+     *   M5(4/4): B4(h) C#5(q) C#5(q)    slots: 5 5 4 4  (C# = slot 4+sharp)
+     *   M6(4/4): D5(doth) E5(q)→ D5(h) E5(h) slots: 3 3 2 2
      *
-     * Bar 13: G5-half  D5(dotq) G5(8th)   -- repeat of opening
-     * Bar 14: F#5-half  D5-half
-     * Bar 15: E5-qtr  D5-qtr  E5-qtr  F#5-qtr
-     * Bar 16: G5-whole
+     * LINE 2 (Staff 1, measures 7-12):
+     *   M7:  D5(q) D5(q) C5(q) C5(q)     slots: 3 3 4 4
+     *   M8:  B4(h,dotted) → B4(h) A4(q)  slots: 5 5 6 rest
+     *   M9:  B4(q) A4(q) G4(q) A4(q)     slots: 5 6 7 6
+     *     Wait user line2: "D D C C B / A B A G A / B A G A B / C B A G A B"
+     *   M7:  D5(q) D5(q) C5(q) C5(q)
+     *   M8:  B4(dotted-h) A4(q) = h+q rest
+     *   M9:  B4(q) A4(q) G4(q) A4(q)
+     *   M10: B4(q) A4(q) G4(q) A4(q)
+     *   M11: B4(q) C5(q) B4(q) A4(q)
+     *   M12: G4(q) A4(q) B4(q) [end] - sheet shows beamed group
      *
-     * Layout: staff 0=bars1-4, staff1=bars5-8, staff2=bars9-12, staff3=bars13-16
-     * Each bar = 4 cols (quarter resolution). 16 notes per staff.
+     * LINE 3 (Staff 2, measures 13-18):
+     *   M13: A4(q) G4(q) A4(q) B4(q)
+     *   M14: C5(q) B4(q) A4(q) A4(q)
+     *   M15: G4(q) B4(q) B4(q) C#5(q)
+     *   M16: B4(q) A4(q) B4(whole)=held
+     *   M17: B4(h) D5(q) D5(q)
+     *   M18: G4(q) A4(q) [end of line]
+     *
+     * LINE 4 (Staff 3, measures 19-23):
+     *   M19: A4(h) C5(h)
+     *   M20: C5(q) A4(q) G4(h)
+     *   M21: A4(q) B4(q) C#5(h)
+     *   M22: C#5(q) C5(q) A4(q) G4(q)
+     *   M23: F#5... wait user: "A C C / A G A / B C# C# / C A G F# / G A"
+     *        F#5 = slot 1 + ACC_SHARP
+     *   M23: F#5(q) G4(q) A4(q) [rest]  → slots: 1+sharp 7 6 rest
+     *
+     * LINE 5 (Staff 3 continued or new staff - but we only have 4 staves):
+     *   User line5: "B(held) B D D C A G F# / B G B(final)"
+     *   Fitting into remaining cols of staff 3 and overflow into staff...
+     *   We have 4 staves, 16 cols each. Line 4 used M19-23 = ~13 cols.
+     *   Remaining cols 14-16 of staff 3 = final notes.
+     *
+     * PRACTICAL LAYOUT (16 notes per staff, quarter-beat resolution):
+     * Staff 0: M1(h q q rest) M2(q q q q) M3(h rest h rest) M4(whole rest rest rest)
+     *          → 4+4+4+4 = 16 cols ✓
+     * Staff 1: M5(h q q) M6(h h) M7(q q q q) M8(h rest q rest)
+     *          → 3+4+4... need 16. M5=3 M6=4 M7=4 M8=3 = 14. Add M9 partial?
+     *          Simplify: M5(h q q rest) M6(h h) M7(q q q q) M8(h rest q rest)
+     *          = 4+4+4+4 = 16 ✓
+     * Staff 2: M9(q q q q) M10(q q q q) M11(q q q q) M12(h rest rest rest)
+     *          = 4+4+4+4 = 16 ✓
+     * Staff 3: M13(q q q q) M14(q q q q) M15(q q q q) M16(h rest q rest) ...
+     *          or fit last measures
+     *
+     * Final practical mapping:
+     *
+     * STAFF 0:
+     *   idx 0-3  (M1): B4(h) D5(q) D5(q) rest  → slots: 5 3 3 REST
+     *   idx 4-7  (M2): G4(q) A4(q) B4(q) C5(q) → slots: 7 6 5 4
+     *   idx 8-11 (M3): D5(h) rest  A4(h) rest   → slots: 3 3 6 6
+     *   idx 12-15(M4): A4(whole) rest rest rest  → slots: 6 6 6 6
+     *
+     * STAFF 1:
+     *   idx 0-3  (M5): B4(h) C#5(q) C#5(q) rest → slots: 5 4+S 4+S REST
+     *   idx 4-7  (M6): D5(h) rest  E5(h) rest   → slots: 3 3 2 2
+     *   idx 8-11 (M7): D5(q) D5(q) C5(q) C5(q) → slots: 3 3 4 4
+     *   idx 12-15(M8): B4(doth≈h) rest A4(q) rest → slots: 5 5 6 6
+     *
+     * STAFF 2:
+     *   idx 0-3  (M9):  B4(q) A4(q) G4(q) A4(q)  → 5 6 7 6
+     *   idx 4-7  (M10): B4(q) A4(q) G4(q) A4(q)  → 5 6 7 6
+     *   idx 8-11 (M11): B4(q) C5(q) B4(q) A4(q)  → 5 4 5 6
+     *   idx 12-15(M12): G4(q) A4(q) B4(h) rest   → 7 6 5 5
+     *
+     * STAFF 3:
+     *   idx 0-3  (M13): A4(h) rest C5(h) rest     → 6 6 4 4
+     *   idx 4-7  (M14): C5(q) A4(q) G4(h) rest   → 4 6 7 7
+     *   idx 8-11 (M15): A4(q) B4(q) C#5(h) rest  → 6 5 4+S 4+S
+     *   idx 12-15(end): C5(q) A4(q) G4(q) F#5(q) + final: G4(q) A4(q) B4(h)
+     *   Fitting 5 notes in 4 slots: C5(q) A4(q) G4(q) F#5(q) [overflow into next bar]
+     *   → 4 6 7 1+S  then last partial: need G A B(h) → add to col 13-16: 7 6 5 5
+     *
+     * Re-simplify staff 3 to exactly 16:
+     *   idx 0-3  (M19): A4(h) rest  C5(h) rest    → 6 6 4 4
+     *   idx 4-7  (M20): C5(q) A4(q) G4(q) A4(q)  → 4 6 7 6
+     *   idx 8-11 (M21): B4(q) C#5(q) C#5(q) rest → 5 4+S 4+S rest
+     *   idx 12-15(M22+end): C5(q) A4(q) G4(q) F#5(q) → 4 6 7 1+S
+     *   B(held) G B(final) overflow lost — place in last 3: 5 5 7 5
+     *   → Let's use: C5(q) A4(q) G4(q) B4(whole→h)
+     *   idx 12-15: 4 6 7 5   types: q q q h+rest
      */
 
-    /* slots[64] — one entry per column/note-event */
     int slots[64] = {
-        /* Staff 0: bars 1-4 */
-        /* Bar1: G4(h) D5(q) E5(q) rest */  7, 3, 2, 4,
-        /* Bar2: F#5(h) D5(h) */             1, 1, 3, 3,
-        /* Bar3: D5 E5 F#5 G5 */             3, 2, 1, 0,
-        /* Bar4: G5(whole -> h+h) */         0, 0, 0, 0,
+        /* Staff 0: M1-M4 */
+        /* M1: B4(h) D5(q) D5(q) rest */   5, 3, 3, 7,
+        /* M2: G4(q) A4(q) B4(q) C5(q) */  7, 6, 5, 4,
+        /* M3: D5(h) rest  A4(h) rest */    3, 3, 6, 6,
+        /* M4: A4(whole) rest rest rest */  6, 6, 6, 6,
 
-        /* Staff 1: bars 5-8 */
-        /* Bar5: G5(h) F#5(q) G5(q) */      0, 0, 1, 0,
-        /* Bar6: E5(h) D5(h) */              2, 2, 3, 3,
-        /* Bar7: E5(h) D5(q) C5(q) */        2, 2, 3, 4,
-        /* Bar8: beamed 8ths D5 E5 F#5 G5 */ 3, 2, 1, 0,
+        /* Staff 1: M5-M8 */
+        /* M5: B4(h) C#5(q) C#5(q) rest */ 5, 4, 4, 3,
+        /* M6: D5(h) rest  E5(h) rest */    3, 3, 2, 2,
+        /* M7: D5(q) D5(q) C5(q) C5(q) */  3, 3, 4, 4,
+        /* M8: B4(h) rest  A4(q) rest */    5, 5, 6, 6,
 
-        /* Staff 2: bars 9-12 */
-        /* Bar9:  D5(q) C5(q) B4(q) A4(q) */ 3, 4, 5, 6,
-        /* Bar10: D5(q) C5(q) B4(q) A4(q) */ 3, 4, 5, 6,
-        /* Bar11: D5(q) C5(q) B4(q) G4(q) */ 3, 4, 5, 7,
-        /* Bar12: D5(h) rest rest */          3, 3, 4, 4,
+        /* Staff 2: M9-M12 */
+        /* M9:  B4(q) A4(q) G4(q) A4(q) */ 5, 6, 7, 6,
+        /* M10: B4(q) A4(q) G4(q) A4(q) */ 5, 6, 7, 6,
+        /* M11: B4(q) C5(q) B4(q) A4(q) */ 5, 4, 5, 6,
+        /* M12: G4(q) A4(q) B4(h) rest */  7, 6, 5, 5,
 
-        /* Staff 3: bars 13-16 */
-        /* Bar13: G5(h) D5(q) E5(q) */       0, 0, 3, 2,
-        /* Bar14: F#5(h) D5(h) */             1, 1, 3, 3,
-        /* Bar15: E5(q) D5(q) E5(q) F#5(q)*/ 2, 3, 2, 1,
-        /* Bar16: G5(whole -> h+h) */         0, 0, 0, 0
+        /* Staff 3: M19-end */
+        /* M19: A4(h) rest C5(h) rest */    6, 6, 4, 4,
+        /* M20: C5(q) A4(q) G4(q) A4(q) */ 4, 6, 7, 6,
+        /* M21: B4(q) C#5(q) C#5(q) rest */ 5, 4, 4, 6,
+        /* M22+end: C5(q) A4(q) G4(q) B4(h) */ 4, 6, 7, 5
     };
 
     int types[64] = {
         /* Staff 0 */
-        NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
-        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
+        NOTE_HALF,    NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_WHOLE, NOTE_REST,   NOTE_REST,    NOTE_REST,
+        NOTE_HALF,    NOTE_REST,    NOTE_HALF,    NOTE_REST,
+        NOTE_WHOLE,   NOTE_REST,    NOTE_REST,    NOTE_REST,
 
         /* Staff 1 */
-        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
-        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF,    NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
+        NOTE_HALF,    NOTE_REST,    NOTE_HALF,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF,    NOTE_REST,    NOTE_QUARTER, NOTE_REST,
 
         /* Staff 2 */
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF,    NOTE_REST,    NOTE_REST,    NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
 
         /* Staff 3 */
-        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
+        NOTE_HALF,    NOTE_REST,    NOTE_HALF,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_WHOLE, NOTE_REST,   NOTE_REST,    NOTE_REST
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF
     };
 
-    /* Accidentals: F# = slot 1 gets ACC_SHARP */
+    /* Accidentals: C#5 = slot 4 + ACC_SHARP */
     int accs[64];
     for (int i = 0; i < 64; i++) accs[i] = ACC_NONE;
-    /* Bar2 col2 = F#5, Bar2 col3 stays D5 (no sharp needed for slot1 placeholder in rest) */
-    /* Staff0: indices 4,5 are bar2 F#5 halves */
-    accs[4] = ACC_SHARP;  /* F#5 bar2 beat1 */
-    /* Staff0: bar3 F#5 = index 10 */
-    accs[10] = ACC_SHARP;
-    /* Staff1: bar5 index 18 = F#5 */
+    /* Staff 1, M5: idx 17=C#5, idx 18=C#5 */
+    accs[17] = ACC_SHARP;
     accs[18] = ACC_SHARP;
-    /* Staff1: bar8 index 26 = F#5 (3rd of 4 beamed) */
-    accs[26] = ACC_SHARP;
-    /* Staff3: bar14 index 49 = F#5 */
+    /* Staff 3, M21: idx 49=C#5, idx 50=C#5 */
     accs[49] = ACC_SHARP;
-    /* Staff3: bar15 index 58 = F#5 */
-    accs[58] = ACC_SHARP;
+    accs[50] = ACC_SHARP;
 
     for (int i = 0; i < 64; i++) {
         int staff = i / 16;
@@ -1061,114 +1131,160 @@ static void preload_star_spangled(void) {
     num_notes = 0;
 
     /*
-     * Reading from the sheet music (Trumpet in B part):
+     * Corrected Star-Spangled Banner (user-provided notes, durations from sheet):
+     * Key: C major, 3/4 time, Trumpet in B (written pitch used).
      *
-     * Bar 0 (pickup): G4(dotq) E4(8th)                         [2 beats]
-     * Bar 1: C5(h)   E5(q)                                     [3 beats]
-     * Bar 2: G5(dotq) F5(8th)  G5(q)                           [3 beats] -- but wait:
-     *   Sheet bar2: E5(dotq) F5(8th) G5(h)                     actually reading:
+     * Slot map: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+     * C4 → use D4 (slot 10) as lowest available substitute
+     * F#5 = slot 1 + ACC_SHARP
      *
-     * Re-reading image carefully, bar by bar:
+     * User notes (written pitch, by line):
+     * Line 1 (measures 1-6):
+     *   G(q) E(q) C(h) E(q) | G(h) C(q) | E(doth)≈h D(q) C(h) B(q) | C(h) ...
+     *   Exact: G–E–C–E–G / C / E–D / C–E–F#–G / G–G / E–D–C–B–C
      *
-     * Pickup (1 beat): G4(dotq+8th = beat subdivided)
-     *   → G4-qtr  E4-qtr  (2 beats worth, fits as pickup into 3/4)
+     * Line 2 (measures 7-14):
+     *   C–C–G / E–C(rest) / E–F–G / A / F–E / D–E–F / F / F / E–D–C
      *
-     * Bar 1: C5(half) E5(qtr)
-     * Bar 2: G5(dotq≈qtr) rest  C5(qtr)   -- dotted q F5 8th: F5(q) G5(h)
-     *   Reading more carefully:
-     *   Bar2: E5(dotq) F5(8th) G5(half)
-     * Bar 3: G5(qtr) F#5(half-dotted→h+q)
-     * Bar 4: E5(qtr) C5(qtr) E5(qtr)
-     * Bar 5: G5(half-dotted → h+q)
-     * Bar 6: D5(half-dotted)
-     * Bar 7: E5(qtr) F5(qtr) [repeat sign]
-     * ...
+     * Line 3 (measures 15-20):
+     *   B / C–B / C / E–F#–G / G / C–C–C–B / A–A–A / D / F–E–D–C
      *
-     * Fitting 3/4 into 16-col staves (3 beats per bar, ~5 bars = 15 cols + 1 rest):
+     * Line 4 (measures 21-end):
+     *   C–B / G–G / C / D–E–F / G / C–D / E–F / D / C(final,held)
      *
-     * STAFF 0 (pickup + bars 1-4, 16 slots):
-     *  pickup: G4(q) E4(q)                   cols 1-2
-     *  bar1:   C5(h) E5(q)                   cols 3-4-5 → h=2cols q=1col
-     *  bar2:   E5(q) F5(q) G5(q)             cols 6-7-8  (dotq approx as q)
-     *  bar3:   G5(q) F#5(h)                  cols 9-10-11
-     *  bar4:   E5(q) C5(q) E5(q)             cols 12-13-14
-     *  padding:rest                            col 15-16
+     * Practical layout (3/4: 3 beats/bar, 16 cols per staff):
+     * Each bar = 3 col slots. 5 full bars = 15 cols + 1 rest padding = 16.
      *
-     * STAFF 1 (bars 5-9):
-     *  bar5:   G5(h) rest                    cols 1-2-3
-     *  bar6:   D5(h) rest                    cols 4-5-6  (D5 half-dotted → h+q)
-     *  bar7:   E5(q) F5(q) G5(q)             cols 7-8-9  (or E4 F4 based on sheet)
-     *  bar8:   C5(q) D5(q) E5(q)             cols 10-11-12
-     *  bar9:   G4(h) rest                    cols 13-14-15
-     *  rest                                   col 16
+     * STAFF 0 (pickup + bars 1-5):
+     *   Pickup(2q): G4 E4                      cols 1-2
+     *   Bar1(h q):  C5(h) E5(q)               cols 3-4-5
+     *   Bar2(q q q): G5(q) rest C5(q)         cols 6-7-8  ← dotq+8th approx
+     *   Bar3(q q q): E5(q) D5(q) C5(q)        cols 9-10-11 (actually E dotq F#8th G half)
+     *     → E5(q) F#5(q) G5(h)... fit as: E5(q) F#5(q) G5(q) cols 9-10-11 then
+     *   Bar4(q h):  G5(q) G5(h)               cols 12-13-14
+     *   Padding:    rest rest                   cols 15-16
      *
-     * STAFF 2 (bars 10-14):
-     *  bar10:  E5(h) F#5(q)                  cols 1-2-3
-     *  bar11:  G5(h) rest                    cols 4-5-6
-     *  bar12:  C5(q) C5(q) D5(q)             cols 7-8-9
-     *  bar13:  E5(dotq≈q) D5(q) C5(q)        cols 10-11-12
-     *  bar14:  B4(h) rest                    cols 13-14-15
-     *  rest                                   col 16
+     * Wait — let me re-read user's Line1 more carefully:
+     * "G–E–C–E–G / C / E–D / C–E–F#–G / G–G / E–D–C–B–C"
+     * That's many notes. Mapping to 3/4 bars:
+     *   pickup: G4(q) E4(q)                   [2 beats]
+     *   bar1:   C5(h) E5(q)                   [3 beats]
+     *   bar2:   G5(dotq) C5(q) → G5(q)rest C5(q) [3 beats]
+     *   bar3:   E5(q) D5(q) [= dotted quarter pair]  hmm
+     *   Actually user note order: G E | C E G | C | E D | C E F# G | G G | E D C B C
+     *   bar1: C(h) E(q)
+     *   bar2: G(dotq≈h) C(q) -- but user says "G C" then "E D"...
      *
-     * STAFF 3 (bars 15-19, ending):
-     *  bar15:  G4(h) B4(q)                   cols 1-2-3  (sheet line4: E5 beamed..)
-     *  bar16:  C5(q) D5(q) E5(q)             cols 4-5-6
-     *  bar17:  G5(dotq≈h) rest               cols 7-8-9
-     *  bar18:  E5(q) D5(q) C5(q)             cols 10-11-12
-     *  bar19:  G5(half-dotted) rest           cols 13-14-15
-     *  rest                                   col 16
+     * SIMPLIFIED FINAL LAYOUT matching user note ordering:
+     *
+     * STAFF 0 (measures pickup+1-5, 16 slots):
+     *   col1-2:   G4(q) E4(q)               [pickup]
+     *   col3-5:   C5(h) E5(q)               [bar1]
+     *   col6-8:   G5(q) rest C5(q)          [bar2]  ← dotq approx
+     *   col9-11:  E5(q) D5(q) C5(q)         [bar3 partial]
+     *   col12-14: B4(q) C5(q) rest           [bar3 end]
+     *   col15-16: rest rest
+     *
+     * STAFF 1 (bars 6-10):
+     *   col1-3:   C5(h) C5(q)               [bar6: held + repeat]
+     *   col4-6:   G4(h) rest                [bar7: dotted-half approx]
+     *   col7-9:   E5(q) F5(q) G5(q)         [bar8]
+     *   col10-12: A4(q) F5(q) E5(q)         [bar9]
+     *   col13-15: D5(q) E5(q) F5(q)         [bar10]
+     *   col16:    rest
+     *
+     * STAFF 2 (bars 11-15):
+     *   col1-3:   F5(q) F5(q) E5(q)         [bar11]
+     *   col4-6:   D5(q) C5(q) rest          [bar12 partial]
+     *   col7-9:   B4(h) rest                [bar13: half-dotted]
+     *   col10-12: C5(q) B4(q) C5(q)         [bar14]
+     *   col13-15: E5(q) F#5(q) G5(q)        [bar15]
+     *   col16:    rest
+     *
+     * STAFF 3 (bars 16-end):
+     *   col1-3:   G5(q) C5(q) C5(q)         [bar16]
+     *   col4-6:   C5(q) B4(q) A4(q)         [bar17]
+     *   col7-9:   A4(q) A4(q) rest          [bar18 partial]
+     *   col10-12: D5(q) F5(q) E5(q)         [bar19]
+     *   col13-15: D5(q) C5(q) rest          [pickup to final]
+     *   col16:    C5(whole → held, half)
      */
 
     int slots[64] = {
-        /* Staff 0 */
-        7,  9,   4,  4,  2,   2,  1,  0,   0,  1,  1,   2,  4,  2,   0,  0,
-        /* Staff 1 */
-        0,  0,  7,   3,  3,  7,   2,  1,  0,   4,  3,  2,   7,  7,  7,   7,
-        /* Staff 2 */
-        2,  2,  1,   0,  0,  4,   4,  4,  3,   2,  3,  4,   5,  5,  5,   5,
-        /* Staff 3 */
-        7,  7,  5,   4,  3,  2,   0,  0,  4,   2,  3,  4,   0,  0,  0,   0
+        /* Staff 0: pickup + bars 1-4 (exactly 16) */
+        /* Pickup: G4(q) E4(q) */               7,  9,
+        /* Bar1: C5(h) rest E5(q) */             4,  4,  2,
+        /* Bar2: G5(q) rest C5(q) */             0,  0,  4,
+        /* Bar3: E5(q) F#5(q) G5(q) */           2,  1,  0,
+        /* Bar4: G5(q) G5(h) rest */              0,  0,  0,
+        /* padding */                             0,  0,
+
+        /* Staff 1: bars 5-9 (exactly 16) */
+        /* Bar5: C5(h) rest C5(q) */              4,  4,  4,
+        /* Bar6: G4(h) rest rest */               7,  7,  7,
+        /* Bar7: E5(q) F5(q) G5(q) */            2,  1,  0,
+        /* Bar8: A4(q) F5(q) E5(q) */            6,  1,  2,
+        /* Bar9: D5(q) E5(q) F5(q) */            3,  2,  1,
+        /* padding */                             1,
+
+        /* Staff 2: bars 10-14 (exactly 16) */
+        /* Bar10: F5(q) F5(q) E5(q) */           1,  1,  2,
+        /* Bar11: D5(q) C5(q) rest */             3,  4,  4,
+        /* Bar12: B4(h) rest rest */              5,  5,  5,
+        /* Bar13: C5(q) B4(q) C5(q) */           4,  5,  4,
+        /* Bar14: E5(q) F#5(q) G5(q) */          2,  1,  0,
+        /* padding */                             0,
+
+        /* Staff 3: bars 15-end (exactly 16) */
+        /* Bar15: G5(q) C5(q) C5(q) */           0,  4,  4,
+        /* Bar16: C5(q) B4(q) A4(q) */           4,  5,  6,
+        /* Bar17: A4(q) A4(q) rest */             6,  6,  6,
+        /* Bar18: D5(q) F5(q) E5(q) */           3,  1,  2,
+        /* Bar19: D5(q) C5(h) rest */             3,  4,  4,
+        /* padding */                             4
     };
 
     int types[64] = {
-        /* Staff 0: pickup(q q) | bar1(h q) | bar2(q q q) | bar3(q h) | bar4(q q q) | rest rest */
+        /* Staff 0: 16 entries */
         NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF,    NOTE_REST,   NOTE_QUARTER,
+        NOTE_HALF,    NOTE_REST,    NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_REST,    NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,   NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+        NOTE_REST,    NOTE_REST,
 
-        /* Staff 1: bar5(h rest q) | bar6(h rest q) | bar7(q q q) | bar8(q q q) | bar9(h rest) rest */
-        NOTE_HALF, NOTE_REST, NOTE_REST,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
+        /* Staff 1: 16 entries */
+        NOTE_HALF,    NOTE_REST,    NOTE_QUARTER,
+        NOTE_HALF,    NOTE_REST,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_REST,
 
-        /* Staff 2: bar10(h q) | bar11(h rest) | bar12(q q q) | bar13(q q q) | bar14(h rest) rest */
-        NOTE_HALF, NOTE_REST, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
+        /* Staff 2: 16 entries */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
+        NOTE_HALF,    NOTE_REST,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
         NOTE_REST,
 
-        /* Staff 3: bar15(h q) | bar16(q q q) | bar17(h rest) | bar18(q q q) | bar19(h rest) rest */
-        NOTE_HALF, NOTE_REST, NOTE_QUARTER,
+        /* Staff 3: 16 entries */
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
         NOTE_REST
     };
 
-    /* Accidentals: F# in bar3 and bar10 */
+    /* Accidentals: F#5 = slot 1 + ACC_SHARP */
     int accs[64];
     for (int i = 0; i < 64; i++) accs[i] = ACC_NONE;
-    accs[10] = ACC_SHARP; /* F#5 in bar3 (staff0, col11) */
-    accs[18] = ACC_SHARP; /* F#5 in staff1 bar10 col3 */
+    /* Staff 0, bar3: idx 9 = F#5 */
+    accs[9]  = ACC_SHARP;
+    /* Staff 2, bar15: idx 45 = F#5 */
+    accs[45] = ACC_SHARP;
 
     for (int i = 0; i < 64; i++) {
         int staff = i / 16;
