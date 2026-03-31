@@ -933,123 +933,249 @@ static void preload_ode_to_joy(void) {
 }
 
 /* -------------------------------------------------------
-   Song 2 – O Canada
-   Key: C major.  Slots: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
-   Melody (treble, simplified):
-     E5 G5 G5 | G5 E5 C5 E5 G5 | A4 . A4 D5 D5 | C5 G5 A4 .
-     F5 F5 E5 D5 | C5 E5 G5 G5 | D5 D5 C5 B4 | A4 . . .
-   Spread across 4 staves x 16 cols (Page 1 only)
+   Song 2 – O Canada (C. Lavallée)
+   Key: G major (F# throughout). 4/4 time. BPM ~112.
+   Slot map: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+   F# = slot 1 + ACC_SHARP.  A5 mapped down to G5 (slot 0).
+   4 bars per staff (4 qtr beats each = 16 cols). 4 staves = bars 1-16.
+   Dotted-quarter approximated as QUARTER; dotted-half as HALF+QUARTER.
    ------------------------------------------------------- */
 static void preload_o_canada(void) {
     num_notes = 0;
 
-    /* Slot values per note position (16 per staff, 4 staves = 64) */
-    int slots[] = {
-        /* Staff 0: O  Ca- na- da  | Our  home and  na- | tive  land  True |  pa- triot  love */
-        2, 0, 0, 0,   2, 4, 2, 0,   6, 6, 3, 3,   4, 7, 6, 7,
+    /*
+     * Bar 1:  G4-half  D5-qtr  E5-qtr
+     * Bar 2:  F#5-half  D5-half
+     * Bar 3:  D5-qtr  E5-qtr  F#5-qtr  G5-qtr
+     * Bar 4:  G5(A5)-whole
+     *
+     * Bar 5:  G5-half  F#5-qtr  G5-qtr
+     * Bar 6:  E5-half  D5-half
+     * Bar 7:  E5-qtr  E5-qtr  D5-qtr  C5-qtr   (actually: E5 E5 D5 B4 in some arr.)
+     *         Reading sheet line 2 bar 7: E5-half  D5(dotq) 8th-group
+     * Bar 8:  beamed 8ths: D5 E5 F#5 G5  (uses BEAM2_8TH x2)
+     *
+     * Bar 9:  D5(dotq) C5(8th)  B4(dotq) A4(8th)
+     * Bar 10: D5(dotq) C5(8th)  B4(dotq) A4(8th)
+     * Bar 11: D5(dotq) C5(8th)  16th-group B4 A4 G4 (approx qtr qtr)
+     * Bar 12: D5(dotq)  rest    rest   rest
+     *
+     * Bar 13: G5-half  D5(dotq) G5(8th)   -- repeat of opening
+     * Bar 14: F#5-half  D5-half
+     * Bar 15: E5-qtr  D5-qtr  E5-qtr  F#5-qtr
+     * Bar 16: G5-whole
+     *
+     * Layout: staff 0=bars1-4, staff1=bars5-8, staff2=bars9-12, staff3=bars13-16
+     * Each bar = 4 cols (quarter resolution). 16 notes per staff.
+     */
 
-        /* Staff 1: in  all  thy  sons com- mand | With  glow- ing  hearts we  see thee  rise */
-        8, 8, 2, 3,   4, 2, 0, 0,   3, 3, 4, 5,   6, 7, 7, 7,
+    /* slots[64] — one entry per column/note-event */
+    int slots[64] = {
+        /* Staff 0: bars 1-4 */
+        /* Bar1: G4(h) D5(q) E5(q) rest */  7, 3, 2, 4,
+        /* Bar2: F#5(h) D5(h) */             1, 1, 3, 3,
+        /* Bar3: D5 E5 F#5 G5 */             3, 2, 1, 0,
+        /* Bar4: G5(whole -> h+h) */         0, 0, 0, 0,
 
-        /* Staff 2: The  True  North  strong and  free | From  far  and  wide O  Ca- na- da */
-        9, 2, 3, 4,   2, 0, 0, 7,   8, 8, 2, 3,   4, 2, 0, 0,
+        /* Staff 1: bars 5-8 */
+        /* Bar5: G5(h) F#5(q) G5(q) */      0, 0, 1, 0,
+        /* Bar6: E5(h) D5(h) */              2, 2, 3, 3,
+        /* Bar7: E5(h) D5(q) C5(q) */        2, 2, 3, 4,
+        /* Bar8: beamed 8ths D5 E5 F#5 G5 */ 3, 2, 1, 0,
 
-        /* Staff 3: We  stand on  guard for  thee | God  keep our  land  glo- rious and  free */
-        3, 4, 5, 6,   7, 9, 9, 9,   4, 4, 3, 3,   4, 7, 7, 7
+        /* Staff 2: bars 9-12 */
+        /* Bar9:  D5(q) C5(q) B4(q) A4(q) */ 3, 4, 5, 6,
+        /* Bar10: D5(q) C5(q) B4(q) A4(q) */ 3, 4, 5, 6,
+        /* Bar11: D5(q) C5(q) B4(q) G4(q) */ 3, 4, 5, 7,
+        /* Bar12: D5(h) rest rest */          3, 3, 4, 4,
+
+        /* Staff 3: bars 13-16 */
+        /* Bar13: G5(h) D5(q) E5(q) */       0, 0, 3, 2,
+        /* Bar14: F#5(h) D5(h) */             1, 1, 3, 3,
+        /* Bar15: E5(q) D5(q) E5(q) F#5(q)*/ 2, 3, 2, 1,
+        /* Bar16: G5(whole -> h+h) */         0, 0, 0, 0
     };
 
-    int types[] = {
+    int types[64] = {
         /* Staff 0 */
-        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_REST,
+        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_HALF,    NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_WHOLE, NOTE_REST,   NOTE_REST,    NOTE_REST,
 
         /* Staff 1 */
+        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
+        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST,
 
         /* Staff 2 */
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF,    NOTE_REST,    NOTE_REST,    NOTE_REST,
 
         /* Staff 3 */
+        NOTE_HALF, NOTE_REST,    NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST,    NOTE_HALF,    NOTE_REST,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST
+        NOTE_WHOLE, NOTE_REST,   NOTE_REST,    NOTE_REST
     };
+
+    /* Accidentals: F# = slot 1 gets ACC_SHARP */
+    int accs[64];
+    for (int i = 0; i < 64; i++) accs[i] = ACC_NONE;
+    /* Bar2 col2 = F#5, Bar2 col3 stays D5 (no sharp needed for slot1 placeholder in rest) */
+    /* Staff0: indices 4,5 are bar2 F#5 halves */
+    accs[4] = ACC_SHARP;  /* F#5 bar2 beat1 */
+    /* Staff0: bar3 F#5 = index 10 */
+    accs[10] = ACC_SHARP;
+    /* Staff1: bar5 index 18 = F#5 */
+    accs[18] = ACC_SHARP;
+    /* Staff1: bar8 index 26 = F#5 (3rd of 4 beamed) */
+    accs[26] = ACC_SHARP;
+    /* Staff3: bar14 index 49 = F#5 */
+    accs[49] = ACC_SHARP;
+    /* Staff3: bar15 index 58 = F#5 */
+    accs[58] = ACC_SHARP;
 
     for (int i = 0; i < 64; i++) {
         int staff = i / 16;
         int col   = (i % 16) + 1;
         inject_note(col, staff, slots[i], types[i], 1);
+        if (accs[i] != ACC_NONE && num_notes > 0)
+            notes[num_notes - 1].accidental = accs[i];
     }
     toolbar_state.instrument = TB_INST_PIANO_REVERB;
     toolbar_state.bpm = 112;
 }
 
 /* -------------------------------------------------------
-   Song 3 – The Star-Spangled Banner
-   Key: C major (starting on G4).
-   Slots: 7=G4 9=E4 4=C5 2=E5 0=G5 6=A4 3=D5 5=B4 10=D4 8=F4
-   Opening: G4 E4 C5 | E5 G5 . C6(=0+oct, use G5 up) ...
-   Simplified to fit the available range (slots 0-10):
+   Song 3 – The Star-Spangled Banner (Francis Scott Key / J.S. Smith)
+   Key: C major. 3/4 time. BPM ~96. Trumpet in B (concert pitch used here).
+   Slot map: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+   C4 not available → D4 (slot 10) used as substitute.
+   3/4: each bar = 3 quarter beats → with 16 cols per staff: ~5 bars per staff.
    ------------------------------------------------------- */
 static void preload_star_spangled(void) {
     num_notes = 0;
 
     /*
-     * Melody mapped to available slots (octave shifted to fit C4-G5 range):
-     * Oh    say  can  you  see   |  by  the  dawn's  ear- ly  light
-     * What  so   proud- ly  we   hailed | at  the  twi- light's  last  gleam- ing
-     * Whose broad  stripes  and bright  stars | thro' the  per- il- ous  fight
-     * O'er  the  ram- parts  we  watch'd | were  so  gal- lant- ly  stream- ing
+     * Reading from the sheet music (Trumpet in B part):
+     *
+     * Bar 0 (pickup): G4(dotq) E4(8th)                         [2 beats]
+     * Bar 1: C5(h)   E5(q)                                     [3 beats]
+     * Bar 2: G5(dotq) F5(8th)  G5(q)                           [3 beats] -- but wait:
+     *   Sheet bar2: E5(dotq) F5(8th) G5(h)                     actually reading:
+     *
+     * Re-reading image carefully, bar by bar:
+     *
+     * Pickup (1 beat): G4(dotq+8th = beat subdivided)
+     *   → G4-qtr  E4-qtr  (2 beats worth, fits as pickup into 3/4)
+     *
+     * Bar 1: C5(half) E5(qtr)
+     * Bar 2: G5(dotq≈qtr) rest  C5(qtr)   -- dotted q F5 8th: F5(q) G5(h)
+     *   Reading more carefully:
+     *   Bar2: E5(dotq) F5(8th) G5(half)
+     * Bar 3: G5(qtr) F#5(half-dotted→h+q)
+     * Bar 4: E5(qtr) C5(qtr) E5(qtr)
+     * Bar 5: G5(half-dotted → h+q)
+     * Bar 6: D5(half-dotted)
+     * Bar 7: E5(qtr) F5(qtr) [repeat sign]
+     * ...
+     *
+     * Fitting 3/4 into 16-col staves (3 beats per bar, ~5 bars = 15 cols + 1 rest):
+     *
+     * STAFF 0 (pickup + bars 1-4, 16 slots):
+     *  pickup: G4(q) E4(q)                   cols 1-2
+     *  bar1:   C5(h) E5(q)                   cols 3-4-5 → h=2cols q=1col
+     *  bar2:   E5(q) F5(q) G5(q)             cols 6-7-8  (dotq approx as q)
+     *  bar3:   G5(q) F#5(h)                  cols 9-10-11
+     *  bar4:   E5(q) C5(q) E5(q)             cols 12-13-14
+     *  padding:rest                            col 15-16
+     *
+     * STAFF 1 (bars 5-9):
+     *  bar5:   G5(h) rest                    cols 1-2-3
+     *  bar6:   D5(h) rest                    cols 4-5-6  (D5 half-dotted → h+q)
+     *  bar7:   E5(q) F5(q) G5(q)             cols 7-8-9  (or E4 F4 based on sheet)
+     *  bar8:   C5(q) D5(q) E5(q)             cols 10-11-12
+     *  bar9:   G4(h) rest                    cols 13-14-15
+     *  rest                                   col 16
+     *
+     * STAFF 2 (bars 10-14):
+     *  bar10:  E5(h) F#5(q)                  cols 1-2-3
+     *  bar11:  G5(h) rest                    cols 4-5-6
+     *  bar12:  C5(q) C5(q) D5(q)             cols 7-8-9
+     *  bar13:  E5(dotq≈q) D5(q) C5(q)        cols 10-11-12
+     *  bar14:  B4(h) rest                    cols 13-14-15
+     *  rest                                   col 16
+     *
+     * STAFF 3 (bars 15-19, ending):
+     *  bar15:  G4(h) B4(q)                   cols 1-2-3  (sheet line4: E5 beamed..)
+     *  bar16:  C5(q) D5(q) E5(q)             cols 4-5-6
+     *  bar17:  G5(dotq≈h) rest               cols 7-8-9
+     *  bar18:  E5(q) D5(q) C5(q)             cols 10-11-12
+     *  bar19:  G5(half-dotted) rest           cols 13-14-15
+     *  rest                                   col 16
      */
-    int slots[] = {
-        /* Staff 0: Oh say can you see, by the dawn's early light */
-        7, 4, 4, 9, 4, 2,   2, 3, 2, 4, 7, 7,   7, 7, 7, 7,
 
-        /* Staff 1: What so proudly we hailed at the twilight's last gleaming */
-        6, 0, 0, 2, 0, 0,   2, 3, 2, 4, 7, 7,   7, 9, 4, 4,
-
-        /* Staff 2: Whose broad stripes and bright stars thro' the perilous fight */
-        9, 9, 9, 5, 5, 6,   6, 7, 9, 4, 2, 2,   3, 4, 2, 0,
-
-        /* Staff 3: O'er the ramparts we watch'd were so gallantly streaming */
-        0, 0, 2, 0, 2, 3,   2, 4, 7, 7, 6, 6,   7, 9, 4, 4
-    };
-
-    int types[] = {
+    int slots[64] = {
         /* Staff 0 */
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-        NOTE_REST,    NOTE_REST,   NOTE_REST,    NOTE_REST,
-
+        7,  9,   4,  4,  2,   2,  1,  0,   0,  1,  1,   2,  4,  2,   0,  0,
         /* Staff 1 */
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-
+        0,  0,  7,   3,  3,  7,   2,  1,  0,   4,  3,  2,   7,  7,  7,   7,
         /* Staff 2 */
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-
+        2,  2,  1,   0,  0,  4,   4,  4,  3,   2,  3,  4,   5,  5,  5,   5,
         /* Staff 3 */
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST
+        7,  7,  5,   4,  3,  2,   0,  0,  4,   2,  3,  4,   0,  0,  0,   0
     };
+
+    int types[64] = {
+        /* Staff 0: pickup(q q) | bar1(h q) | bar2(q q q) | bar3(q h) | bar4(q q q) | rest rest */
+        NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF,    NOTE_REST,   NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,   NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_REST, NOTE_REST,
+
+        /* Staff 1: bar5(h rest q) | bar6(h rest q) | bar7(q q q) | bar8(q q q) | bar9(h rest) rest */
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_REST,
+
+        /* Staff 2: bar10(h q) | bar11(h rest) | bar12(q q q) | bar13(q q q) | bar14(h rest) rest */
+        NOTE_HALF, NOTE_REST, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_REST,
+
+        /* Staff 3: bar15(h q) | bar16(q q q) | bar17(h rest) | bar18(q q q) | bar19(h rest) rest */
+        NOTE_HALF, NOTE_REST, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF, NOTE_REST, NOTE_REST,
+        NOTE_REST
+    };
+
+    /* Accidentals: F# in bar3 and bar10 */
+    int accs[64];
+    for (int i = 0; i < 64; i++) accs[i] = ACC_NONE;
+    accs[10] = ACC_SHARP; /* F#5 in bar3 (staff0, col11) */
+    accs[18] = ACC_SHARP; /* F#5 in staff1 bar10 col3 */
 
     for (int i = 0; i < 64; i++) {
         int staff = i / 16;
         int col   = (i % 16) + 1;
         inject_note(col, staff, slots[i], types[i], 1);
+        if (accs[i] != ACC_NONE && num_notes > 0)
+            notes[num_notes - 1].accidental = accs[i];
     }
     toolbar_state.instrument = TB_INST_PIANO_REVERB;
     toolbar_state.bpm = 96;
