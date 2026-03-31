@@ -880,14 +880,12 @@ int main(void) {
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
-                build_and_draw_background();
-                safe_draw_toolbar(cur_note_type);
-                safe_draw_row2(cur_accidental);
-                update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-                redraw_all_notes();
-                draw_cursor_cell(cur_x, cur_y);
+                for (int my = MENU_Y0; my <= MENU_Y1 + 4; my++)
+                    for (int mx = MENU_X0; mx <= MENU_X1 + 4; mx++)
+                        plot_pixel(mx, my, bg[my][mx]);
+                redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open = 1;
+                menu_open = 1; 
                 g_drawing_ui = 1; 
                 draw_options_menu();
                 g_drawing_ui = 0;
