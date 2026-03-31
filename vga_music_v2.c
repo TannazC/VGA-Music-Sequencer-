@@ -1337,6 +1337,159 @@ static void preload_star_spangled(void)
    Slots:  10=D4, 9=E4, 8=F4, 7=G4, 6=A4, 5=Bb4(B4-flat), 4=C5, 3=D5
    Characteristic descending-ascending phrases in 4/4.
    ------------------------------------------------------- */
+static void preload_fur_elise(void)
+{
+    /*
+     * Fur Elise – Beethoven (opening theme, 4 staves)
+     * Slot map: 0=G5,1=F5,2=E5,3=D5,4=C5,5=B4,6=A4,7=G4,8=F4,9=E4,10=D4
+     *
+     * Staff 0: E5 D#5 E5 D#5  E5 B4 D5 C5   A4 . C4 E4   A4 B4 . .
+     *   slots:  2  2s  2  2s   2  5  3  4    6  R  *  9    6  5  R  R
+     * (D#5 = E5 slot2 sharp, C4/E4 below range -> use D4/E4 = slots 10,9)
+     *
+     * Staff 1: B4 . E4 G#4   B4 C5 . E4    A4 . . C#4   A4 B4 . .
+     *   slots:  5  R  9  6s   5  4  R  9    6  R  R  10s   6  5  R  R
+     *
+     * Staff 2: E5 D#5 E5 D#5  E5 B4 D5 C5   A4 . C4 E4   A4 E4 A4 .
+     *   slots:  2  2  2   2    2  5  3  4    6  R  10 9    6  9  6  R
+     *
+     * Staff 3: B4 D5 F5 G5   E5 . C5 E4    A4 B4 . .     E5 D#5 E5 .
+     *   slots:  5  3  1  0    2  R  4  9    6  5  R  R    2  2   2  R
+     */
+
+    num_notes = 0;
+
+    /* slots, accs, types for 64 notes (16 per staff) */
+    int slots[64] = {
+        /* Staff 0 */
+        2, 2, 2, 2,   2, 5, 3, 4,   6, -1, 10, 9,   6, 5, -1, -1,
+        /* Staff 1 */
+        5, -1, 9, 6,   5, 4, -1, 9,   6, -1, -1, 10,   6, 5, -1, -1,
+        /* Staff 2 */
+        2, 2, 2, 2,   2, 5, 3, 4,   6, -1, 10, 9,   6, 9, 6, -1,
+        /* Staff 3 */
+        5, 3, 1, 0,   2, -1, 4, 9,   6, 5, -1, -1,   2, 2, 2, -1
+    };
+    /* 1=sharp, 2=flat, 0=none */
+    int accs[64] = {
+        0,1,0,1, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+        0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0,
+        0,1,0,1, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0,1,0,0
+    };
+    int types[64] = {
+        /* Staff 0 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_REST,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_HALF,NOTE_REST,NOTE_REST,
+        /* Staff 1 */
+        NOTE_HALF,NOTE_REST,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_HALF,NOTE_REST,NOTE_QUARTER,
+        NOTE_HALF,NOTE_REST,NOTE_REST,NOTE_QUARTER,
+        NOTE_HALF,NOTE_HALF,NOTE_REST,NOTE_REST,
+        /* Staff 2 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_REST,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        /* Staff 3 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_REST,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_HALF,NOTE_HALF,NOTE_REST,NOTE_REST,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST
+    };
+
+    int col_map[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15};
+    for (int i = 0; i < 64; i++)
+    {
+        int staff = i / 16;
+        int ci    = i % 16;
+        if (slots[i] < 0) continue; /* REST — leave column silent */
+        int col = col_map[ci];
+        inject_note(col, staff, slots[i], types[i], 1);
+        if (accs[i] != 0 && num_notes > 0)
+            notes[num_notes - 1].accidental = accs[i];
+    }
+    toolbar_state.instrument = TB_INST_PIANO;
+    toolbar_state.bpm = 80;
+}
+
+static void preload_do_re_mi(void)
+{
+    /*
+     * Do-Re-Mi – Rogers & Hammerstein (The Sound of Music)
+     * "Doe a deer, a female deer..."
+     * Slot map (treble): 0=G5,1=F5,2=E5,3=D5,4=C5,5=B4,6=A4,7=G4,8=F4,9=E4,10=D4
+     *
+     * Scale: Do=C5(4) Re=D5(3) Mi=E5(2) Fa=F5(1) Sol=G5(0) La=A5(above)→use A4(6) Si=B5→B4(5)
+     * We use one octave: C5..B5 mapped to slots 4,3,2,1,0,6,5
+     *
+     * Staff 0: Do Re Mi Do  Mi Do Mi .   Re Fa Mi Re  Fa Re Fa .
+     *   C5  D5 E5 C5  E5 C5 E5 R   D5 F5 E5 D5  F5 D5 F5 R
+     *   4   3  2  4    2  4  2  R   3  1  2  3   1  3  1  R
+     *
+     * Staff 1: Mi Sol Fa Mi  Sol Mi Sol . Fa La Sol Fa  La Fa La .
+     *   E5 G5 F5 E5   G5 E5 G5 R   F5 A4 G5 F5   A4 F5 A4 R
+     *   2  0  1  2    0  2  0  R   1  6  0  1    6  1  6  R
+     *
+     * Staff 2: Sol Do Re Mi  Fa Sol . .  La Ti Do .  . . . .
+     *   G5 C5 D5 E5  F5 G5 R R  A4 B4 C5 R  R R R R
+     *   0  4  3  2   1  0  R R   6  5  4 R  R R R R
+     *
+     * Staff 3: Do Re Mi Fa  Sol La Ti Do  Do . . .  . . . .
+     *   C5 D5 E5 F5  G5 A4 B4 C5  C5 . . .
+     *   4  3  2  1   0  6  5  4   4  R R R  R R R R
+     */
+
+    num_notes = 0;
+
+    int slots[64] = {
+        /* Staff 0 */
+        4,3,2,4, 2,4,2,-1, 3,1,2,3, 1,3,1,-1,
+        /* Staff 1 */
+        2,0,1,2, 0,2,0,-1, 1,6,0,1, 6,1,6,-1,
+        /* Staff 2 */
+        0,4,3,2, 1,0,-1,-1, 6,5,4,-1, -1,-1,-1,-1,
+        /* Staff 3 */
+        4,3,2,1, 0,6,5,4, 4,-1,-1,-1, -1,-1,-1,-1
+    };
+    int types[64] = {
+        /* Staff 0 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        /* Staff 1 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        /* Staff 2 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_HALF,NOTE_REST,NOTE_REST,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_HALF,NOTE_REST,
+        NOTE_REST,NOTE_REST,NOTE_REST,NOTE_REST,
+        /* Staff 3 */
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,NOTE_QUARTER,
+        NOTE_WHOLE,NOTE_REST,NOTE_REST,NOTE_REST,
+        NOTE_REST,NOTE_REST,NOTE_REST,NOTE_REST
+    };
+
+    int col_map[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15};
+    for (int i = 0; i < 64; i++)
+    {
+        int staff = i / 16;
+        int ci    = i % 16;
+        if (slots[i] < 0) continue;
+        int col = col_map[ci];
+        inject_note(col, staff, slots[i], types[i], 1);
+    }
+    toolbar_state.instrument = TB_INST_PIANO;
+    toolbar_state.bpm = 100;
+}
+
 static void preload_ya_tab_tab(void)
 {
     num_notes = 0;
@@ -1427,10 +1580,10 @@ static void preload_song(void)
         preload_o_canada();
         break;
     case 3:
-        preload_star_spangled();
+        preload_fur_elise();
         break;
     case 4:
-        preload_ya_tab_tab();
+        preload_do_re_mi();
         break;
     default:
         preload_ode_to_joy();
@@ -1700,6 +1853,20 @@ restart_main_menu:
                 if (b == KEY_3)
                 {
                     toolbar_set_instrument(TB_INST_XYLOPHONE);
+                    continue;
+                }
+                if (b == KEY_4)
+                {
+                    toolbar_set_instrument(TB_INST_TUBA);
+                    continue;
+                }
+                if (b == KEY_5)
+                {
+                    /* Go back to main options menu */
+                    menu_state = MENU_STATE_MAIN;
+                    g_drawing_ui = 1;
+                    draw_options_menu();
+                    g_drawing_ui = 0;
                     continue;
                 }
             }
