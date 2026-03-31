@@ -44,12 +44,19 @@ static const unsigned char music_sequencer_bmp[32][30] = {
 };
 /* Globals to track if we are on the boot screen and what is selected */
 extern volatile int g_start_screen_active;
-extern int g_start_selection; /* 1 = Create, 2 = Preload */
+extern int g_start_selection;  /* 1 = Create, 2 = Preload */
+extern int g_song_selection;   /* 1=Ode to Joy, 2=O Canada, 3=Star Spangled Banner, 4=Ya Tab Tab */
 
 /* Draws the static background, title, and initial buttons */
 void draw_start_screen(void);
 
-/* Repaints just the buttons when the user presses W or S */
+/* Repaints just the main menu buttons when the user presses W or S */
 void update_start_selection(int active_opt);
+
+/* Draws the song-select submenu (called after pressing 2 in main menu) */
+void draw_song_select_screen(void);
+
+/* Repaints just the song option buttons */
+void update_song_selection(int active_opt);
 
 #endif

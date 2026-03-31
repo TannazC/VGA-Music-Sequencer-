@@ -11,6 +11,7 @@ extern void plot_pixel(int x, int y, short int c);
 
 volatile int g_start_screen_active = 0;
 int g_start_selection = 1;
+int g_song_selection  = 1;   /* 1=Ode to Joy, 2=O Canada, 3=Star Spangled Banner, 4=Ya Tab Tab */
 
 /* -------------------------------------------------------
    Colour palette  (RGB 5-6-5)  — additional colours local to the start screen
@@ -266,4 +267,33 @@ void draw_start_screen(void) {
 void update_start_selection(int active_opt) {
     draw_option(80, 115, 160, 24, '1', "CREATE YOUR OWN", (active_opt == 1));
     draw_option(80, 145, 160, 24, '2', "PRELOAD SONG",    (active_opt == 2));
+}
+
+/* =================================================================
+   Song-select submenu  (appears after choosing option 2)
+   ================================================================= */
+void update_song_selection(int active_opt) {
+    draw_option(50, 105, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
+    draw_option(50, 131, 220, 22, '2', "O CANADA",            (active_opt == 2));
+    draw_option(50, 157, 220, 22, '3', "STAR SPANGLED BANNER",(active_opt == 3));
+    draw_option(50, 183, 220, 22, '4', "YA TAB TAB WADELLAH", (active_opt == 4));
+}
+
+void draw_song_select_screen(void) {
+    g_start_screen_active = 1;
+    g_song_selection = 1;
+
+    fill_rect(0, 0, SCREEN_W, SCREEN_H, COLOR_PINK_BG);
+
+    draw_staff(14);
+    draw_treble_clef(10, 14 - 6, COLOR_STAFF);
+    draw_staff(210);
+    draw_treble_clef(10, 210 - 6, COLOR_STAFF);
+
+    draw_custom_logo_bitmap(1.5);
+
+    draw_hline(50, 95, 220, COLOR_SPEARMINT);
+    draw_string_centered(SCREEN_W / 2, 98, "SELECT A SONG", 1, COLOR_SPEARMINT);
+
+    update_song_selection(g_song_selection);
 }

@@ -856,33 +856,31 @@ static void inject_note(int col, int staff, int slot, int nt, int page) {
     num_notes++;
 }
 
-static void preload_song(void) {
+/* ═══════════════════════════════════════════════════════════════════════
+   Preloaded Songs
+   Slot reference: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* -------------------------------------------------------
+   Song 1 – Ode to Joy (Beethoven, Symphony No. 9)
+   ------------------------------------------------------- */
+static void preload_ode_to_joy(void) {
     num_notes = 0;
-    
-    /* Ode to Joy: 128 total grid placements across 2 Pages!
-       With 16 columns per staff, this perfectly fills both pages.
-    */
+
     int song_slots[] = {
         /* PAGE 1 */
-        /* Phrase 1 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3, 
-        /* Phrase 2 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4, 
-        /* Phrase 3 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7, 
+        /* Phrase 1 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3,
+        /* Phrase 2 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4,
+        /* Phrase 3 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7,
         /* Phrase 4 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4,
-        
         /* PAGE 2 */
-        /* Phrase 5 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3, 
-        /* Phrase 6 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4, 
-        /* Phrase 7 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7, 
-        /* Phrase 8 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4  
+        /* Phrase 5 (Staff 0) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  2, 3, 3, 3,
+        /* Phrase 6 (Staff 1) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4,
+        /* Phrase 7 (Staff 2) */ 3, 3, 2, 4,  3, 2, 2, 4,  3, 2, 3, 4,  4, 3, 7, 7,
+        /* Phrase 8 (Staff 3) */ 2, 2, 1, 0,  0, 1, 2, 3,  4, 4, 3, 2,  3, 4, 4, 4
     };
-    
+
     int song_types[] = {
-        /* PAGE 1 */
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
-        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
-        
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
@@ -898,12 +896,16 @@ static void preload_song(void) {
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
 
-        /* PAGE 2 */
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
-        
+
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
@@ -919,18 +921,230 @@ static void preload_song(void) {
         NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
         NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST
     };
-    
+
     for (int i = 0; i < 128; i++) {
-        int page  = (i / 64) + 1; /* First 64 on page 1, next 64 on page 2 */
+        int page  = (i / 64) + 1;
         int staff = (i % 64) / 16;
-        int col   = (i % 16) + 1; /* Starts safely past the clef at col 1 */
-        
+        int col   = (i % 16) + 1;
         inject_note(col, staff, song_slots[i], song_types[i], page);
     }
-
-    /* Optimal settings for this song */
     toolbar_state.instrument = TB_INST_PIANO_REVERB;
-    toolbar_state.bpm = 160; 
+    toolbar_state.bpm = 160;
+}
+
+/* -------------------------------------------------------
+   Song 2 – O Canada
+   Key: C major.  Slots: 0=G5 1=F5 2=E5 3=D5 4=C5 5=B4 6=A4 7=G4 8=F4 9=E4 10=D4
+   Melody (treble, simplified):
+     E5 G5 G5 | G5 E5 C5 E5 G5 | A4 . A4 D5 D5 | C5 G5 A4 .
+     F5 F5 E5 D5 | C5 E5 G5 G5 | D5 D5 C5 B4 | A4 . . .
+   Spread across 4 staves x 16 cols (Page 1 only)
+   ------------------------------------------------------- */
+static void preload_o_canada(void) {
+    num_notes = 0;
+
+    /* Slot values per note position (16 per staff, 4 staves = 64) */
+    int slots[] = {
+        /* Staff 0: O  Ca- na- da  | Our  home and  na- | tive  land  True |  pa- triot  love */
+        2, 0, 0, 0,   2, 4, 2, 0,   6, 6, 3, 3,   4, 7, 6, 7,
+
+        /* Staff 1: in  all  thy  sons com- mand | With  glow- ing  hearts we  see thee  rise */
+        8, 8, 2, 3,   4, 2, 0, 0,   3, 3, 4, 5,   6, 7, 7, 7,
+
+        /* Staff 2: The  True  North  strong and  free | From  far  and  wide O  Ca- na- da */
+        9, 2, 3, 4,   2, 0, 0, 7,   8, 8, 2, 3,   4, 2, 0, 0,
+
+        /* Staff 3: We  stand on  guard for  thee | God  keep our  land  glo- rious and  free */
+        3, 4, 5, 6,   7, 9, 9, 9,   4, 4, 3, 3,   4, 7, 7, 7
+    };
+
+    int types[] = {
+        /* Staff 0 */
+        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_HALF,    NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+
+        /* Staff 1 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST,
+
+        /* Staff 2 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST,
+
+        /* Staff 3 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_QUARTER, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_HALF,    NOTE_REST
+    };
+
+    for (int i = 0; i < 64; i++) {
+        int staff = i / 16;
+        int col   = (i % 16) + 1;
+        inject_note(col, staff, slots[i], types[i], 1);
+    }
+    toolbar_state.instrument = TB_INST_PIANO_REVERB;
+    toolbar_state.bpm = 112;
+}
+
+/* -------------------------------------------------------
+   Song 3 – The Star-Spangled Banner
+   Key: C major (starting on G4).
+   Slots: 7=G4 9=E4 4=C5 2=E5 0=G5 6=A4 3=D5 5=B4 10=D4 8=F4
+   Opening: G4 E4 C5 | E5 G5 . C6(=0+oct, use G5 up) ...
+   Simplified to fit the available range (slots 0-10):
+   ------------------------------------------------------- */
+static void preload_star_spangled(void) {
+    num_notes = 0;
+
+    /*
+     * Melody mapped to available slots (octave shifted to fit C4-G5 range):
+     * Oh    say  can  you  see   |  by  the  dawn's  ear- ly  light
+     * What  so   proud- ly  we   hailed | at  the  twi- light's  last  gleam- ing
+     * Whose broad  stripes  and bright  stars | thro' the  per- il- ous  fight
+     * O'er  the  ram- parts  we  watch'd | were  so  gal- lant- ly  stream- ing
+     */
+    int slots[] = {
+        /* Staff 0: Oh say can you see, by the dawn's early light */
+        7, 4, 4, 9, 4, 2,   2, 3, 2, 4, 7, 7,   7, 7, 7, 7,
+
+        /* Staff 1: What so proudly we hailed at the twilight's last gleaming */
+        6, 0, 0, 2, 0, 0,   2, 3, 2, 4, 7, 7,   7, 9, 4, 4,
+
+        /* Staff 2: Whose broad stripes and bright stars thro' the perilous fight */
+        9, 9, 9, 5, 5, 6,   6, 7, 9, 4, 2, 2,   3, 4, 2, 0,
+
+        /* Staff 3: O'er the ramparts we watch'd were so gallantly streaming */
+        0, 0, 2, 0, 2, 3,   2, 4, 7, 7, 6, 6,   7, 9, 4, 4
+    };
+
+    int types[] = {
+        /* Staff 0 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+        NOTE_REST,    NOTE_REST,   NOTE_REST,    NOTE_REST,
+
+        /* Staff 1 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+
+        /* Staff 2 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+
+        /* Staff 3 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,   NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF, NOTE_REST
+    };
+
+    for (int i = 0; i < 64; i++) {
+        int staff = i / 16;
+        int col   = (i % 16) + 1;
+        inject_note(col, staff, slots[i], types[i], 1);
+    }
+    toolbar_state.instrument = TB_INST_PIANO_REVERB;
+    toolbar_state.bpm = 96;
+}
+
+/* -------------------------------------------------------
+   Song 4 – Ya Tab Tab wa Dalla (Egyptian folk)
+   Scale (D maqam / Rast on D): D4 E4 F4 G4 A4 Bb4 C5 D5
+   Slots:  10=D4, 9=E4, 8=F4, 7=G4, 6=A4, 5=Bb4(B4-flat), 4=C5, 3=D5
+   Characteristic descending-ascending phrases in 4/4.
+   ------------------------------------------------------- */
+static void preload_ya_tab_tab(void) {
+    num_notes = 0;
+
+    /*
+     * Ya tab tab wa dalla: lively, ornamental melody.
+     * Phrase A:  D5 C5 Bb4 A4  G4 F4 E4 D4  (descending scale)
+     * Phrase B:  D4 E4 F4 G4   A4 Bb4 A4 G4 (ascending then resolve)
+     * Phrase C:  G4 A4 Bb4 C5  D5 D5 C5 Bb4 (climax)
+     * Phrase D:  A4 G4 F4 E4   D4 D4 D4 .   (final cadence)
+     * Repeated across 4 staves.
+     */
+
+    /* ACC for each note: 0=none, 1=sharp, 2=flat */
+    /* Bb4 = slot 5 + flat (ACC_FLAT=2) */
+
+    int slots[] = {
+        /* Staff 0 – Phrase A (descending) */
+        3, 4, 5, 6,   7, 8, 9, 10,  3, 4, 5, 6,   7, 8, 9, 10,
+
+        /* Staff 1 – Phrase B (ascending) */
+        10, 9, 8, 7,  6, 5, 6, 7,   10, 9, 8, 7,  6, 5, 6, 7,
+
+        /* Staff 2 – Phrase C (climax) */
+        7, 6, 5, 4,   3, 3, 4, 5,   7, 6, 5, 4,   3, 3, 4, 5,
+
+        /* Staff 3 – Phrase D (cadence) */
+        6, 7, 8, 9,   10, 10, 10, 7,  6, 5, 6, 7,  3, 4, 10, 10
+    };
+
+    /* Accidentals: slot 5 needs ACC_FLAT for Bb */
+    int accs[64];
+    for (int i = 0; i < 64; i++) {
+        accs[i] = ACC_NONE;
+        if (slots[i] == 5) accs[i] = ACC_FLAT; /* Bb4 */
+    }
+
+    int types[] = {
+        /* Staff 0 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        /* Staff 1 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        /* Staff 2 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_HALF,    NOTE_REST,
+
+        /* Staff 3 */
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_HALF,    NOTE_REST,    NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER, NOTE_QUARTER,
+        NOTE_QUARTER, NOTE_QUARTER, NOTE_WHOLE,   NOTE_REST
+    };
+
+    for (int i = 0; i < 64; i++) {
+        int staff = i / 16;
+        int col   = (i % 16) + 1;
+        /* inject_note doesn't take accidental; set it after */
+        inject_note(col, staff, slots[i], types[i], 1);
+        /* Patch the accidental on the note we just added */
+        if (accs[i] != ACC_NONE && num_notes > 0) {
+            notes[num_notes - 1].accidental = accs[i];
+        }
+    }
+    toolbar_state.instrument = TB_INST_PIANO_REVERB;
+    toolbar_state.bpm = 132;
+}
+
+static void preload_song(void) {
+    switch (g_song_selection) {
+        case 1: preload_ode_to_joy();    break;
+        case 2: preload_o_canada();      break;
+        case 3: preload_star_spangled(); break;
+        case 4: preload_ya_tab_tab();    break;
+        default: preload_ode_to_joy();   break;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -960,6 +1174,34 @@ int main(void) {
             if (b == KEY_S) { g_start_selection = 2; update_start_selection(g_start_selection); }
             if (b == KEY_1) { g_start_selection = 1; update_start_selection(g_start_selection); g_start_screen_active = 0; }
             if (b == KEY_2) { g_start_selection = 2; update_start_selection(g_start_selection); g_start_screen_active = 0; }
+            if (b == KEY_SPACE) { g_start_screen_active = 0; }
+        }
+    }
+
+    /* If user chose Preload Song, show the song-select submenu */
+    if (g_start_selection == 2) {
+        draw_song_select_screen();
+        int got_break_song = 0;
+        while (g_start_screen_active) {
+            int raw = ps2_read_byte(ps2);
+            if (raw < 0) continue;
+            unsigned char b = (unsigned char)raw;
+            if (b == 0xE0) continue;
+            if (b == KEY_BREAK) { got_break_song = 1; continue; }
+            if (got_break_song) { got_break_song = 0; continue; }
+
+            if (b == KEY_W) {
+                if (g_song_selection > 1) g_song_selection--;
+                update_song_selection(g_song_selection);
+            }
+            if (b == KEY_S) {
+                if (g_song_selection < 4) g_song_selection++;
+                update_song_selection(g_song_selection);
+            }
+            if (b == KEY_1) { g_song_selection = 1; update_song_selection(g_song_selection); g_start_screen_active = 0; }
+            if (b == KEY_2) { g_song_selection = 2; update_song_selection(g_song_selection); g_start_screen_active = 0; }
+            if (b == KEY_3) { g_song_selection = 3; update_song_selection(g_song_selection); g_start_screen_active = 0; }
+            if (b == KEY_4) { g_song_selection = 4; update_song_selection(g_song_selection); g_start_screen_active = 0; }
             if (b == KEY_SPACE) { g_start_screen_active = 0; }
         }
     }
