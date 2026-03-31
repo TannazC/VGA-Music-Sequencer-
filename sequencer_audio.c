@@ -115,7 +115,7 @@ static const int note_num_heads_audio[NUM_NOTE_TYPES] = { 1,1,1,2,4,2,1 }; */
 /* ═══════════════════════════════════════════════════════════════════════
    Note struct  (must be identical to vga_music_v2.c)
    ═══════════════════════════════════════════════════════════════════════ */
-#define MAX_NOTES  256
+#define MAX_NOTES  512
 #define MAX_HEADS  4
 
 #ifndef NOTE_STRUCT_DEFINED
@@ -135,6 +135,7 @@ typedef struct {
     int screen_y;
     int head_x[MAX_HEADS];
     int head_y[MAX_HEADS];
+    int page;
 } Note;
 extern Note      notes[MAX_NOTES];
 extern int       num_notes;

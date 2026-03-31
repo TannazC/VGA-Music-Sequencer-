@@ -56,6 +56,16 @@ int pixel_buffer_start;
 #define KEY_MINUS  0x4E
 #define KEY_EQUALS 0x55
 
+/* Page Navigation Keys */
+#define KEY_COMMA  0x41 /* Previous Page (<) */
+#define KEY_PERIOD 0x49 /* Next Page (>) */
+
+/* Page State */
+int cur_page = 1;
+int max_pages = 4;
+volatile int g_drawing_ui = 0; 
+#define UI_SAFE_ZONE 46
+
 /* ═══════════════════════════════════════════════════════════════════════
    Note types  (left-to-right matches the reference image)
    ─────────────────────────────────────────────────────────────────────
@@ -131,7 +141,7 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
 #define GLYPH_ERASE_W  (3 * STEP_W + OVAL_W/2 + FLAG_LEN + 2)
 #define GLYPH_ERASE_H  (STEM_HEIGHT + OVAL_H/2 + 4)
 
-#define MAX_NOTES      256
+#define MAX_NOTES      512
 #define MAX_HEADS      4    /* maximum heads in one glyph */
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -165,6 +175,7 @@ static const int note_num_heads[NUM_NOTE_TYPES] = {
     int screen_y;    /* pixel y of anchor head centre */
     int head_x[MAX_HEADS];   /* pixel x of each head centre */
     int head_y[MAX_HEADS];   /* pixel y of each head centre */
+    int page;
 } Note;
 #endif /* NOTE_STRUCT_DEFINED */   /* prevents redefinition in sequencer_audio.c */
 Note notes[MAX_NOTES];
@@ -199,11 +210,28 @@ static int row_to_y(int row, int *staff_out, int *slot_out)
 /* ═══════════════════════════════════════════════════════════════════════
    Pixel helpers
    ═══════════════════════════════════════════════════════════════════════ */
-void plot_pixel(int x, int y, short int c)
-{
-    if (x < 0 || x >= FB_WIDTH)  return;
-    if (y < 0 || y >= FB_HEIGHT) return;
+void plot_pixel(int x, int y, short int c) {
+    if (x < 0 || x >= FB_WIDTH || y < 0 || y >= FB_HEIGHT) return;
+    if (y < UI_SAFE_ZONE && !g_start_screen_active && !g_drawing_ui) return;
     *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = c;
+}
+
+static void safe_draw_toolbar(int nt) {
+    g_drawing_ui = 1;
+    draw_toolbar(nt);
+    g_drawing_ui = 0;
+}
+
+static void safe_draw_row2(int acc) {
+    g_drawing_ui = 1;
+    draw_toolbar_row2(acc);
+    g_drawing_ui = 0;
+}
+
+static void safe_set_note_type(int nt) {
+    g_drawing_ui = 1;
+    toolbar_set_note_type(nt);
+    g_drawing_ui = 0;
 }
 
 /*
@@ -444,7 +472,6 @@ static void beam_segment(int x0, int y0, int x1, int y1, int thick, short int c)
     }
 }
 
-#define UI_SAFE_ZONE 46
 /* Constraints for angled beams */
 #define MAX_BEAM_DELTA  6  /* Maximum vertical tilt for a single beam group */
 
@@ -733,11 +760,12 @@ static void erase_note_instance(const Note *n)
     }
 }
 
-static void redraw_all_notes(void)
-{
-    int i;
-    for (i = 0; i < num_notes; i++)
-        draw_note_instance(&notes[i], BLACK);
+static void redraw_all_notes(void) {
+    for (int i = 0; i < num_notes; i++) {
+        if (notes[i].page == cur_page) {
+            draw_note_instance(&notes[i], COLOR_BLACK);
+        }
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -816,53 +844,42 @@ static int move_note_head(int cur_col, int cur_staff, int cur_slot, int delta_sl
    Returns 1 if column `col` on (staff, slot) is already claimed by any
    head of any existing note.  Used to block overlapping placements.
    ═══════════════════════════════════════════════════════════════════════ */
-static int col_is_occupied(int col, int staff)
-{
-    int i, h;
-    for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != staff) continue;
-        for (h = 0; h < notes[i].num_heads; h++) {
+static int col_is_occupied(int col, int staff) {
+    for (int i = 0; i < num_notes; i++) {
+        if (notes[i].page != cur_page || notes[i].staff != staff) continue;
+        for (int h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] == col) return 1;
         }
     }
     return 0;
 }
-
 /* ═══════════════════════════════════════════════════════════════════════
    place_note
    Blocks placement if:
      (a) the cursor column is already occupied by any head of any note, OR
      (b) any of the new note's heads would land on an occupied column.
    ═══════════════════════════════════════════════════════════════════════ */
-static void place_note(int cur_col, int cur_staff, int cur_slot,
-                       int cur_x, int cur_y, int nt)
-{
-    int h;
+static void place_note(int cur_col, int cur_staff, int cur_slot, int cur_x, int cur_y, int nt) {
     int nh = note_num_heads[nt];
-
-    /* All heads must fit within the grid columns 0..TOTAL_COLS-1 */
-    if (cur_col < 2 || cur_col + nh - 1 >= TOTAL_COLS) return;  /* cols 0-1 = treble clef */
-
-    /* Check every column the new glyph would occupy */
-    for (h = 0; h < nh; h++) {
+    if (cur_col < 2 || cur_col + nh - 1 >= TOTAL_COLS) return;
+    for (int h = 0; h < nh; h++) {
         if (col_is_occupied(cur_col + h, cur_staff)) return;
     }
-
     if (num_notes >= MAX_NOTES) return;
 
-    notes[num_notes].step        = cur_col;
-    notes[num_notes].staff       = cur_staff;
-    notes[num_notes].pitch_slot  = cur_slot;
-    notes[num_notes].note_type   = nt;
-    notes[num_notes].duration_64 = note_duration_64[nt];
-    notes[num_notes].accidental  = (nt == NOTE_REST) ? ACC_NONE : cur_accidental;
-    notes[num_notes].screen_x    = cur_x;
-    notes[num_notes].screen_y    = cur_y;
-    fill_note_heads(&notes[num_notes], cur_col, cur_staff, cur_slot,
-                    cur_x, cur_y, nt);
+    Note *n = &notes[num_notes];
+    n->step = cur_col;
+    n->staff = cur_staff;
+    n->pitch_slot = cur_slot;
+    n->note_type = nt;
+    n->accidental = (nt == NOTE_REST) ? ACC_NONE : cur_accidental;
+    n->screen_x = cur_x;
+    n->screen_y = cur_y;
+    n->page = cur_page;
+    fill_note_heads(n, cur_col, cur_staff, cur_slot, cur_x, cur_y, nt);
     num_notes++;
 
-    draw_note_glyph(cur_x, cur_y, nt, (nt == NOTE_REST) ? ACC_NONE : cur_accidental, BLACK);
+    draw_note_instance(n, COLOR_BLACK);
     draw_cursor_cell(cur_x, cur_y);
 }
 
@@ -872,16 +889,11 @@ static void place_note(int cur_col, int cur_staff, int cur_slot,
    Checks all heads so beamed notes can be deleted from any of their
    occupied columns, not just the anchor.
    ═══════════════════════════════════════════════════════════════════════ */
-static void delete_note(int cur_col, int cur_staff, int cur_slot,
-                        int cur_x, int cur_y)
-{
-    int i, h;
-    for (i = 0; i < num_notes; i++) {
-        if (notes[i].staff != cur_staff)
-            continue;
-        for (h = 0; h < notes[i].num_heads; h++) {
-            if (notes[i].head_step[h] == cur_col &&
-                notes[i].head_pitch_slot[h] == cur_slot) {
+static void delete_note(int cur_col, int cur_staff, int cur_slot, int cur_x, int cur_y) {
+    for (int i = 0; i < num_notes; i++) {
+        if (notes[i].page != cur_page || notes[i].staff != cur_staff) continue;
+        for (int h = 0; h < notes[i].num_heads; h++) {
+            if (notes[i].head_step[h] == cur_col && notes[i].head_pitch_slot[h] == cur_slot) {
                 erase_note_instance(&notes[i]);
                 notes[i] = notes[num_notes - 1];
                 num_notes--;
@@ -975,82 +987,67 @@ static const char *accidental_label(int accidental)
     if (accidental == ACC_NATURAL) return "ACC: natural";
     return "ACC: off";
 }
-void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
-{
+
+/* Updated Mini Glyph: Spacing 9 provides a 3px gap to prevent "Note Bus" look */
+void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c) {
     Note mini;
     int i;
-    int MINI_STEP = 12;   /* Increased from 6 to 9 to prevent the "bus" look */
-    int MINI_STEM = 8;   /* Slightly longer stem for better proportions */
-
+    int MINI_STEP = 9; 
     mini.note_type = nt;
     mini.accidental = accidental;
     mini.num_heads = note_num_heads[nt];
-    
-    mini.head_x[0] = cx; /* Adjusted to align with the "CURRENT:" text */
+    mini.head_x[0] = cx; 
     mini.head_y[0] = cy;
-
     for (i = 1; i < mini.num_heads; i++) {
         mini.head_x[i] = mini.head_x[0] + i * MINI_STEP;
         mini.head_y[i] = cy;
     }
-
-    /* We use a horizontal beam for the preview to keep it clean */
+    /* Note indicator is at the bottom, safe from clipping */
     draw_note_instance(&mini, c); 
 }
 
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p) {
     int x, y;
-    /* 1. Clear the entire bottom strip before redrawing. */
-    for (y = 210; y < FB_HEIGHT; y++) {
-        for (x = 0; x < FB_WIDTH; x++) {
+    /* Clear bottom strip */
+    for (y = 210; y < FB_HEIGHT; y++)
+        for (x = 0; x < FB_WIDTH; x++)
             plot_pixel(x, y, bg[y][x]);
-        }
-    }
 
-    /* 2. Draw "CURRENT NOTE:" label */
-    tb_draw_string(5, 225, "CURRENT NOTE:", COLOR_BLACK);
-    
-    /* 3. Draw note glyph (handled in main.c or specialized function) */
-    draw_mini_note_glyph(90, 228, nt, (nt == NOTE_REST) ? 0 : accidental, COLOR_BLACK); // Smaller glyph for the indicator
-    /* 4. Update the page indicator in the same strip */
+    g_drawing_ui = 1; /* Allow drawing in the bottom tab if needed */
+    tb_draw_string(5, 222, "CURRENT:", COLOR_BLACK);
+    draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? 0 : accidental, COLOR_BLACK);
     draw_page_indicator(cur_p, max_p);
-    draw_bottom_tab(); // Redraw the bottom toolbar to ensure it stays visible
+    draw_bottom_tab(); 
+    g_drawing_ui = 0;
 }
 /* Forward declaration for play_sequence defined in sequencer_audio.c */
 void play_sequence(void);
 
-static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental,
-                                       int cur_x, int cur_y)
-{
-    int i, h;
-
-    for (i = 0; i < MAX_NOTES; i++) {
-        notes[i].step = 0;
-        notes[i].staff = 0;
-        notes[i].pitch_slot = 0;
-        notes[i].note_type = NOTE_QUARTER;
-        notes[i].duration_64 = 0;
-        notes[i].accidental = ACC_NONE;
-        notes[i].num_heads = 0;
-        notes[i].screen_x = 0;
-        notes[i].screen_y = 0;
-        for (h = 0; h < MAX_HEADS; h++) {
-            notes[i].head_step[h] = 0;
-            notes[i].head_pitch_slot[h] = 0;
-            notes[i].head_x[h] = 0;
-            notes[i].head_y[h] = 0;
-        }
-    }
-
-    num_notes = 0;
-
+/* ═══════════════════════════════════════════════════════════════════════
+   Page Management
+   ═══════════════════════════════════════════════════════════════════════ */
+static void switch_page(int new_page, int cur_x, int cur_y) {
+    if (new_page < 1 || new_page > max_pages) return;
+    cur_page = new_page;
     build_and_draw_background();
-    draw_toolbar(cur_note_type);
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental);
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    redraw_all_notes();
+    draw_cursor_cell(cur_x, cur_y);
+}
+
+static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental, int cur_x, int cur_y) {
+    num_notes = 0;
+    build_and_draw_background();
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental);
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
     draw_cursor_cell(cur_x, cur_y);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Main
+   Main Loop
    ═══════════════════════════════════════════════════════════════════════ */
 int main(void) {
     volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
@@ -1059,7 +1056,9 @@ int main(void) {
     pixel_buffer_start = *pixel_ctrl;
     *(pixel_ctrl + 1)  = pixel_buffer_start;
     
+    /* Hardware Initialization */
     keyboard_init();
+    audio_init(); /* CRITICAL: Fixed audio not playing by initializing the core */
 
     draw_start_screen();
     while (g_start_screen_active) {
@@ -1070,16 +1069,15 @@ int main(void) {
         static int got_break_start = 0;
         if (b == KEY_BREAK) { got_break_start = 1; continue; }
         if (got_break_start) { got_break_start = 0; continue; }
-
-        if (b == KEY_W) { g_start_selection = 1; update_start_selection(1); }
-        if (b == KEY_S) { g_start_selection = 2; update_start_selection(2); }
+        if (b == KEY_W) update_start_selection(1);
+        if (b == KEY_S) update_start_selection(2);
         if (b == KEY_SPACE || b == KEY_1 || b == KEY_2) g_start_screen_active = 0;
     }
 
     build_and_draw_background();
-    draw_toolbar(cur_note_type);
-    draw_toolbar_row2(cur_accidental);
-    update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental);
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
 
     int cur_col = 2, cur_row = 0, cur_staff, cur_slot;
     int cur_x = col_to_x(cur_col);
@@ -1097,30 +1095,34 @@ int main(void) {
         if (b == KEY_BREAK) { got_break = 1; continue; }
         if (got_break) { got_break = 0; got_extended = 0; continue; }
 
-        /* ── Q/E/T/R: Playback Controls (Restored) ── */
-        if (b == KEY_Q) {
+        /* ── Q/E/T/R: Playback Controls ── */
+        if (b == KEY_Q || b == KEY_R) {
+            if (b == KEY_R) seq_is_playing = 0; 
             if (!seq_is_playing) {
                 seq_is_playing = 1; seq_is_paused = 0;
                 toolbar_state.playback = TB_STATE_PLAYING;
-                draw_toolbar(cur_note_type);
-                play_sequence(); /* This function blocks in sequencer_audio.c until seq_is_playing is 0 */
+                safe_draw_toolbar(cur_note_type);
+                
+                play_sequence(); /* Blocks while playing; relies on poll_playback_keys */
+                
                 toolbar_state.playback = TB_STATE_STOPPED;
-                draw_toolbar(cur_note_type);
+                safe_draw_toolbar(cur_note_type);
             }
             continue;
         }
         if (b == KEY_E) {
             seq_is_paused = !seq_is_paused;
             toolbar_state.playback = seq_is_paused ? TB_STATE_PAUSED : TB_STATE_PLAYING;
-            draw_toolbar(cur_note_type);
+            safe_draw_toolbar(cur_note_type);
             continue;
         }
-        if (b == KEY_T) {
-            seq_is_playing = 0; /* sequencer_audio.c checks this in its loop */
-            continue;
-        }
+        if (b == KEY_T) { seq_is_playing = 0; continue; }
 
-        /* ── Navigation, Selection & Editing ── */
+        /* ── Page Navigation ── */
+        if (b == KEY_COMMA) { switch_page(cur_page - 1, cur_x, cur_y); continue; }
+        if (b == KEY_PERIOD) { switch_page(cur_page + 1, cur_x, cur_y); continue; }
+
+        /* ── Menu & Clear ── */
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
@@ -1129,22 +1131,16 @@ int main(void) {
                         plot_pixel(mx, my, bg[my][mx]);
                 redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open = 1; draw_options_menu();
+                menu_open = 1; 
+                g_drawing_ui = 1; 
+                draw_options_menu();
+                g_drawing_ui = 0;
             }
             continue;
         }
 
-        /* ── N: clear all placed notes and reload the staves ── */
         if (b == KEY_N) {
             clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y);
-            menu_open = 0;
-            
-            draw_toolbar_row2(cur_accidental);
-    
-            /* These live at the bottom now */
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
-            draw_page_indicator(1, 1);
-          
             continue;
         }
 
@@ -1155,7 +1151,7 @@ int main(void) {
             continue;
         }
 
-        /* Note selection 1-8: FIX: Use explicit check to avoid swallowing WASD codes */
+        /* Note selection 1-8 */
         int is_note_key = (b == KEY_1 || b == KEY_2 || b == KEY_3 || b == KEY_4 || 
                            b == KEY_5 || b == KEY_6 || b == KEY_7 || b == KEY_8);
         
@@ -1167,10 +1163,10 @@ int main(void) {
             else if (b == KEY_5) cur_note_type = NOTE_BEAM4_16TH;
             else if (b == KEY_6) cur_note_type = NOTE_BEAM2_16TH;
             else if (b == KEY_7) cur_note_type = NOTE_SINGLE16TH;
-            else if (b == KEY_8) { cur_note_type = NOTE_REST; cur_accidental = 0; draw_toolbar_row2(0); }
+            else if (b == KEY_8) { cur_note_type = NOTE_REST; cur_accidental = 0; safe_draw_row2(0); }
             
-            toolbar_set_note_type(cur_note_type);
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+            safe_set_note_type(cur_note_type);
+            update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
             continue;
         }
 
@@ -1180,12 +1176,12 @@ int main(void) {
             else if (b == KEY_X) cur_accidental = 1;
             else if (b == KEY_C) cur_accidental = 2;
             else if (b == KEY_V) cur_accidental = 3;
-            draw_toolbar_row2(cur_accidental);
-            update_note_indicator(cur_note_type, cur_accidental, 1, 1);
+            safe_draw_row2(cur_accidental);
+            update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
             continue;
         }
 
-        /* Arrow Keys: Pitch Adjustment */
+        /* Arrow Keys & Navigation */
         if (got_extended && (b == KEY_UP || b == KEY_DOWN)) {
             int delta = (b == KEY_UP) ? -1 : 1;
             if (move_note_head(cur_col, cur_staff, cur_slot, delta)) {
@@ -1196,7 +1192,6 @@ int main(void) {
             got_extended = 0; continue;
         }
 
-        /* Navigation: W/A/S/D */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             erase_cursor_cell(cur_x, cur_y);
             if (b == KEY_W && cur_row > 0) cur_row--;
@@ -1206,12 +1201,27 @@ int main(void) {
             cur_x = col_to_x(cur_col);
             cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
             redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+            continue;
         }
 
-        if (b == KEY_SPACE) place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
-        if (b == KEY_DELETE) delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
-        if (b == KEY_MINUS) toolbar_set_bpm(toolbar_state.bpm - 5);
-        if (b == KEY_EQUALS) toolbar_set_bpm(toolbar_state.bpm + 5);
+        /* Action Keys: Space (Place) and Delete (Remove) */
+        if (b == KEY_SPACE) {
+            place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+            continue;
+        }
+        if (b == KEY_DELETE) {
+            delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y);
+            continue;
+        }
+        
+        if (b == KEY_MINUS) {
+            toolbar_set_bpm(toolbar_state.bpm - 5);
+            continue;
+        }
+        if (b == KEY_EQUALS) {
+            toolbar_set_bpm(toolbar_state.bpm + 5);
+            continue;
+        }
 
         pixel_buffer_start = *pixel_ctrl;
     }
