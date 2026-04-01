@@ -308,42 +308,75 @@ static void silence(volatile audio_t *audiop, int num_samples)
    clamp24() prevents any distortion if samples peak too high. */
 #define SAMPLE_AMP  2048
 
-/* Length of the sustain loop segment (in samples).
-   We loop a chunk starting at 75% into the sample — this region still
-   has musical content (the steady sustain body) so the note sounds
-   continuously held rather than cutting into the silent tail. */
-#define SUSTAIN_LOOP_LEN  512
+/* Piano time-stretch: the tail of the sample (from STRETCH_START_Q/16
+   to the end) is played back at a slower rate so it fills however many
+   output samples remain.  No looping = no oscillation/tremolo artefact.
+   STRETCH_START_Q is in sixteenths: 12/16 = 75% into the sample. */
+#define STRETCH_START_Q  12   /* out of 16 — i.e. 75% mark */
 
 static void play_sample_buf(volatile audio_t *audiop,
                             const int16_t *buf, int buf_len,
                             int num_samples, int one_shot)
 {
     /* one_shot = 1  -> play sample once, then output silence (xylophone)
-       one_shot = 0  -> play sample once, then loop tail for sustain (piano) */
+       one_shot = 0  -> time-stretch the tail for piano sustain           */
+
+    /* Stretch region: from stretch_start to buf_len-1 (inclusive).
+       The first stretch_start samples play 1:1 (attack + body).
+       The remaining tail is time-stretched to fill all remaining output
+       samples so the note never cuts off and never oscillates. */
+    int stretch_start = (buf_len * STRETCH_START_Q) / 16;
+    if (stretch_start < 0)         stretch_start = 0;
+    if (stretch_start >= buf_len)  stretch_start = buf_len - 1;
+
+    int pre_len   = stretch_start;           /* output samples played 1:1  */
+    int tail_len  = buf_len - stretch_start; /* samples in the tail region */
+    int extra_out = num_samples - pre_len;   /* output samples for the tail */
+
+    /* Fixed-point playback rate for the tail (16.16):
+       rate = tail_len / extra_out.  Rate < 1.0 means slower = stretched. */
+    uint32_t rate_fp = 0;
+    if (extra_out > 0 && tail_len > 0)
+        rate_fp = (uint32_t)(((uint32_t)tail_len << 16) / (uint32_t)extra_out);
+
+    uint32_t tail_pos_fp = 0;   /* fractional read cursor inside the tail */
+
     int t;
     for (t = 0; t < num_samples; t++) {
         int32_t s;
+
         if (buf_len <= 0) {
             s = 0;
-        } else if (t < buf_len) {
-            /* Still inside the recorded sample — play it straight through */
+        } else if (t < pre_len) {
+            /* 1:1 region — attack and body of the note, untouched */
             s = clamp24((int32_t)buf[t] * SAMPLE_AMP);
         } else if (one_shot) {
-            /* Xylophone / percussive: natural decay finished, output silence */
+            /* Xylophone: percussive, just silence after sample ends */
             s = 0;
+        } else if (rate_fp == 0) {
+            /* Degenerate case: note fits within sample, play 1:1 */
+            int idx = t < buf_len ? t : buf_len - 1;
+            s = clamp24((int32_t)buf[idx] * SAMPLE_AMP);
         } else {
-            /* Piano sustain: loop a segment starting at 75% into the sample.
-               At that point the note is in its steady sustain body — still
-               clearly audible — so looping it gives a smooth held note.
-               Looping from the end (the old behaviour) landed in the silent
-               decay tail, producing silence for any held duration. */
-            int loop_start = (buf_len * 3) / 4;   /* 75% mark */
-            if (loop_start + SUSTAIN_LOOP_LEN > buf_len)
-                loop_start = buf_len - SUSTAIN_LOOP_LEN;
-            if (loop_start < 0) loop_start = 0;
-            int loop_idx = loop_start + ((t - buf_len) % SUSTAIN_LOOP_LEN);
-            s = clamp24((int32_t)buf[loop_idx] * SAMPLE_AMP);
+            /* Time-stretch via linear interpolation of the tail.
+               No looping — the rate is chosen so the tail reaches
+               buf_len-1 exactly when the last output sample is emitted. */
+            uint32_t int_part  = tail_pos_fp >> 16;
+            uint32_t frac_part = tail_pos_fp & 0xFFFF;
+
+            int idx0 = stretch_start + (int)int_part;
+            int idx1 = idx0 + 1;
+            if (idx0 >= buf_len) idx0 = buf_len - 1;
+            if (idx1 >= buf_len) idx1 = buf_len - 1;
+
+            int32_t v0 = (int32_t)buf[idx0];
+            int32_t v1 = (int32_t)buf[idx1];
+            int32_t interp = v0 + (int32_t)(((int64_t)(v1 - v0) * (int32_t)frac_part) >> 16);
+            s = clamp24(interp * SAMPLE_AMP);
+
+            tail_pos_fp += rate_fp;
         }
+
         while (audiop->wsrc == 0 || audiop->wslc == 0)
             ;
         audiop->ldata = (uint32_t)s;
