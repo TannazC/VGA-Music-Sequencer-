@@ -308,38 +308,38 @@ static void silence(volatile audio_t *audiop, int num_samples)
    clamp24() prevents any distortion if samples peak too high. */
 #define SAMPLE_AMP  2048
 
-/* Piano time-stretch: the tail of the sample (from STRETCH_START_Q/16
-   to the end) is played back at a slower rate so it fills however many
-   output samples remain.  No looping = no oscillation/tremolo artefact.
-   STRETCH_START_Q is in sixteenths: 12/16 = 75% into the sample. */
-#define STRETCH_START_Q  12   /* out of 16 — i.e. 75% mark */
+/* Piano time-stretch strategy:
+   - 0%  to 50%: play 1:1 (attack + early decay, untouched)
+   - 50% to END: time-stretch this entire half to fill ALL output samples.
+     The stretch rate = (buf_len - stretch_start) / num_samples so the
+     read cursor arrives at buf_len-1 exactly on the last output sample.
+     Linear interpolation prevents aliasing clicks.
+     No looping means no oscillation/tremolo artefact. */
+#define STRETCH_START_Q  8   /* out of 16 — i.e. 50% mark */
 
 static void play_sample_buf(volatile audio_t *audiop,
                             const int16_t *buf, int buf_len,
                             int num_samples, int one_shot)
 {
-    /* one_shot = 1  -> play sample once, then output silence (xylophone)
-       one_shot = 0  -> time-stretch the tail for piano sustain           */
+    /* one_shot = 1  -> play sample once, then silence (xylophone)
+       one_shot = 0  -> time-stretch from the 50% mark (piano)     */
 
-    /* Stretch region: from stretch_start to buf_len-1 (inclusive).
-       The first stretch_start samples play 1:1 (attack + body).
-       The remaining tail is time-stretched to fill all remaining output
-       samples so the note never cuts off and never oscillates. */
-    int stretch_start = (buf_len * STRETCH_START_Q) / 16;
-    if (stretch_start < 0)         stretch_start = 0;
-    if (stretch_start >= buf_len)  stretch_start = buf_len - 1;
+    int stretch_start = (buf_len * STRETCH_START_Q) / 16;  /* 50% */
+    if (stretch_start < 0)        stretch_start = 0;
+    if (stretch_start >= buf_len) stretch_start = buf_len - 1;
 
-    int pre_len   = stretch_start;           /* output samples played 1:1  */
-    int tail_len  = buf_len - stretch_start; /* samples in the tail region */
-    int extra_out = num_samples - pre_len;   /* output samples for the tail */
+    int tail_len = buf_len - stretch_start; /* samples available to stretch */
 
-    /* Fixed-point playback rate for the tail (16.16):
-       rate = tail_len / extra_out.  Rate < 1.0 means slower = stretched. */
+    /* Rate at which we advance through the tail per output sample (16.16).
+       We want to consume exactly tail_len source samples over num_samples
+       output samples, so rate = tail_len / num_samples.
+       Rate < 1.0 when num_samples > tail_len  → slowed down / stretched.
+       Rate = 1.0 when num_samples == tail_len → 1:1 (note fits in sample). */
     uint32_t rate_fp = 0;
-    if (extra_out > 0 && tail_len > 0)
-        rate_fp = (uint32_t)(((uint32_t)tail_len << 16) / (uint32_t)extra_out);
+    if (num_samples > 0 && tail_len > 0)
+        rate_fp = (uint32_t)(((uint32_t)tail_len << 16) / (uint32_t)num_samples);
 
-    uint32_t tail_pos_fp = 0;   /* fractional read cursor inside the tail */
+    uint32_t tail_pos_fp = 0;  /* fractional read cursor within the tail */
 
     int t;
     for (t = 0; t < num_samples; t++) {
@@ -347,20 +347,19 @@ static void play_sample_buf(volatile audio_t *audiop,
 
         if (buf_len <= 0) {
             s = 0;
-        } else if (t < pre_len) {
-            /* 1:1 region — attack and body of the note, untouched */
-            s = clamp24((int32_t)buf[t] * SAMPLE_AMP);
         } else if (one_shot) {
-            /* Xylophone: percussive, just silence after sample ends */
-            s = 0;
+            /* Xylophone: play 1:1, silence once sample exhausted */
+            if (t < buf_len)
+                s = clamp24((int32_t)buf[t] * SAMPLE_AMP);
+            else
+                s = 0;
         } else if (rate_fp == 0) {
-            /* Degenerate case: note fits within sample, play 1:1 */
-            int idx = t < buf_len ? t : buf_len - 1;
-            s = clamp24((int32_t)buf[idx] * SAMPLE_AMP);
+            /* Degenerate: play last sample repeatedly */
+            s = clamp24((int32_t)buf[buf_len - 1] * SAMPLE_AMP);
         } else {
-            /* Time-stretch via linear interpolation of the tail.
-               No looping — the rate is chosen so the tail reaches
-               buf_len-1 exactly when the last output sample is emitted. */
+            /* Piano: time-stretch the entire note from the 50% mark.
+               The read cursor (tail_pos_fp) maps output sample t into
+               the tail region [stretch_start .. buf_len-1] smoothly. */
             uint32_t int_part  = tail_pos_fp >> 16;
             uint32_t frac_part = tail_pos_fp & 0xFFFF;
 
