@@ -831,19 +831,50 @@ static void preload_fur_elise(void) {
 
 static void preload_do_re_mi(void) {
     num_notes = 0;
-    int slots[64] = { 
-        4,3,2,4, 2,4,2,-1, 3,1,2,3, 1,3,1,-1, 
-        2,0,1,2, 0,2,0,-1, 1,6,0,1, 6,1,6,-1, 
-        0,4,3,2, 1,0,-1,-1, 6,5,4,-1, -1,-1,-1,-1, 
-        4,3,2,1, 0,6,5,4, 4,-1,-1,-1, -1,-1,-1,-1 
-    };
-    for (int i = 0; i < 64; i++) {
-        int is_rest = (slots[i] == -1);
-        int draw_slot = is_rest ? 4 : slots[i];
-        int nt = is_rest ? NOTE_REST : NOTE_QUARTER;
-        inject_note((i%16)+1, i/16, draw_slot, nt, 0, 1);
+    int c;
+    int slot_cycle = 0;
+
+    /* Page 1, Staff 0: Whole Notes (nt=0, heads=1) */
+    for (c = 1; c <= 16; c += 4) {
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 1);
     }
-    max_pages = 1; toolbar_state.bpm = 200;
+    /* Page 1, Staff 1: Half Notes (nt=1, heads=1) */
+    for (c = 1; c <= 16; c += 2) {
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 1);
+    }
+    /* Page 1, Staff 2: Quarter Notes (nt=2, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 1);
+    }
+    /* Page 1, Staff 3: Beam2 8ths (nt=3, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 3, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 1);
+    }
+
+    /* Page 2, Staff 0: Beam4 16ths (nt=4, heads=4) */
+    for (c = 1; c <= 13; c += 4) { 
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 1: Beam2 16ths (nt=5, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 2: Single 16ths (nt=6, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 3: Rests and Accidentals mixed */
+    for (c = 1; c <= 16; c++) {
+        if (c % 2 == 1) {
+            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 2);
+        } else {
+            int acc = (c % 4 == 0) ? ACC_SHARP : ACC_FLAT;
+            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 2);
+        }
+    }
+
+    max_pages = 2; 
+    toolbar_state.bpm = 90;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
