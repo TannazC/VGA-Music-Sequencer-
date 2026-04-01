@@ -304,14 +304,15 @@ static void silence(volatile audio_t *audiop, int num_samples)
 }
 
 /* Volume multiplier for sampled instruments.
-   Raised from 350 to 768 so piano/xylophone RMS matches the beep square wave. */
-#define SAMPLE_AMP  768
+   Set high so piano/xylophone are clearly audible.
+   clamp24() prevents any distortion if samples peak too high. */
+#define SAMPLE_AMP  2048
 
-/* Number of samples at the end of a piano buffer to loop for sustain.
-   Piano samples fully decay to silence at ~91% of their length, so
-   looping the last SUSTAIN_LOOP_LEN samples before that silence region
-   gives a smooth held-note extension without the attack repeating. */
-#define SUSTAIN_LOOP_LEN  256
+/* Length of the sustain loop segment (in samples).
+   We loop a chunk starting at 75% into the sample — this region still
+   has musical content (the steady sustain body) so the note sounds
+   continuously held rather than cutting into the silent tail. */
+#define SUSTAIN_LOOP_LEN  512
 
 static void play_sample_buf(volatile audio_t *audiop,
                             const int16_t *buf, int buf_len,
@@ -331,9 +332,14 @@ static void play_sample_buf(volatile audio_t *audiop,
             /* Xylophone / percussive: natural decay finished, output silence */
             s = 0;
         } else {
-            /* Piano sustain: loop a short tail segment from just before the
-               silence region so the note sounds held rather than cut off */
-            int loop_start = buf_len - SUSTAIN_LOOP_LEN;
+            /* Piano sustain: loop a segment starting at 75% into the sample.
+               At that point the note is in its steady sustain body — still
+               clearly audible — so looping it gives a smooth held note.
+               Looping from the end (the old behaviour) landed in the silent
+               decay tail, producing silence for any held duration. */
+            int loop_start = (buf_len * 3) / 4;   /* 75% mark */
+            if (loop_start + SUSTAIN_LOOP_LEN > buf_len)
+                loop_start = buf_len - SUSTAIN_LOOP_LEN;
             if (loop_start < 0) loop_start = 0;
             int loop_idx = loop_start + ((t - buf_len) % SUSTAIN_LOOP_LEN);
             s = clamp24((int32_t)buf[loop_idx] * SAMPLE_AMP);
