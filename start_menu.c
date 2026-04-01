@@ -19,7 +19,6 @@ int g_song_selection  = 1;   /* 1=Ode to Joy, 2=O Canada, 3=Fur Elise, 4=Do Re M
 #define COLOR_PINK_BG         RGB565(244, 184, 206)
 #define COLOR_STAFF           RGB565(210, 155, 178)
 #define COLOR_SPEARMINT_DARK  RGB565( 50, 105,  90)
-#define COLOR_GRAY            RGB565(150, 150, 150)
 #define COLOR_LIGHT_GRAY      RGB565(215, 205, 210)
 #define COLOR_DIM_TEXT        RGB565(160, 140, 150)
 
