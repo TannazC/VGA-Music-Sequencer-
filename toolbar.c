@@ -358,7 +358,7 @@ void draw_page_indicator(int cur_page, int max_pages) {
     
     int page_w = 8 * FONT_ADVANCE;
     /* Logic to center the text exactly in the middle of the screen */
-    int cx = (FB_WIDTH - page_w) / 2 + 15; 
+    int cx = (FB_WIDTH - page_w) / 2; 
 
     tb_draw_string(cx, y, page_str, COLOR_BLACK);
 }
@@ -413,18 +413,21 @@ void draw_options_menu(void) {
 
 void draw_options_menu_instrument(void) {
     int iy1 = MENU_Y0 + 140;
-    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, iy1 + 4, TB_BORDER); /* Shadow */
-    tb_fill(MENU_X0, MENU_Y0, MENU_X1, iy1, COLOR_BLACK);
-    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, iy1 - 2, TB_BG);
-
-    tb_draw_string(MENU_X0 + 30, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PAUSE_FILL);
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
+    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PLAY_FILL);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
-
+    
     int inst = toolbar_state.instrument;
-    menu_draw_row(MENU_Y0 + 45, "BEEP",      "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_Y0 + 70, "PIANO",     "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_Y0 + 95, "XYLOPHONE", "3", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_XYLOPHONE);
-
+    
+    /* Highlight the active instrument in Fuchsia */
+    short int c1 = (inst == TB_INST_BEEP) ? COLOR_FUCHSIA : COLOR_BLACK;
+    short int c2 = (inst == TB_INST_PIANO) ? COLOR_FUCHSIA : COLOR_BLACK;
+    short int c3 = (inst == 3) ? COLOR_FUCHSIA : COLOR_BLACK; /* 3 = Xylophone */
+    
+    tb_draw_string(MENU_X0 + 15, MENU_Y0 + 45, "[1] BEEP", c1);
+    tb_draw_string(MENU_X0 + 15, MENU_Y0 + 65, "[2] PIANO", c2);
+    tb_draw_string(MENU_X0 + 15, MENU_Y0 + 85, "[3] XYLOPHONE", c3);
     tb_draw_string(MENU_X0 + 32, iy1 - 18, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 

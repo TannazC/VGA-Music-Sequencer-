@@ -115,8 +115,6 @@ void draw_options_menu_instrument(void);
 /* Draws the page count (e.g., "PAGE 1/1") at the bottom right */
 void draw_page_indicator(int cur_page, int max_pages);
 
-/* Clears the bottom area and redrafts the "CURRENT NOTE" glyph and page indicator */
-void update_note_indicator(int nt, int accidental, int cur_p, int max_p);
 
 /* Helper to draw strings using the skinny font atlas */
 void tb_draw_string(int x, int y, const char *str, short int col);

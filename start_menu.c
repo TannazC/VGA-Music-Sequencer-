@@ -19,7 +19,6 @@ int g_song_selection  = 1;   /* 1=Ode to Joy, 2=O Canada, 3=Fur Elise, 4=Do Re M
 #define COLOR_PINK_BG         RGB565(244, 184, 206)
 #define COLOR_STAFF           RGB565(210, 155, 178)
 #define COLOR_SPEARMINT_DARK  RGB565( 50, 105,  90)
-#define COLOR_GRAY            RGB565(150, 150, 150)
 #define COLOR_LIGHT_GRAY      RGB565(215, 205, 210)
 #define COLOR_DIM_TEXT        RGB565(160, 140, 150)
 
@@ -273,10 +272,10 @@ void update_start_selection(int active_opt) {
    Song-select submenu  (appears after choosing option 2)
    ================================================================= */
 void update_song_selection(int active_opt) {
-    draw_option(50,  99, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
-    draw_option(50, 123, 220, 22, '2', "O CANADA",            (active_opt == 2));
-    draw_option(50, 147, 220, 22, '3', "FUR ELISE",           (active_opt == 3));
-    draw_option(50, 171, 220, 22, '4', "DO RE MI",            (active_opt == 4));
+    draw_option(50,  99, 220, 22, '1', "DO RE MI",          (active_opt == 1));
+    draw_option(50, 123, 220, 22, '2', "FUR ELISE",            (active_opt == 2));
+    draw_option(50, 147, 220, 22, '3', "ODE TO JOY",           (active_opt == 3));
+    draw_option(50, 171, 220, 22, '4', "NOUR EL AIN",            (active_opt == 4));
     draw_option(50, 201, 220, 22, '5', "BACK TO MAIN MENU",   0);
 }
 

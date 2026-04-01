@@ -46,8 +46,8 @@ int pixel_buffer_start;
 #define KEY_N 0x31
 
 /* Page Structure Keys */
-#define KEY_K 0x42 /* Add Page */
-#define KEY_L 0x4B /* Remove Page */
+#define KEY_K 0x42 
+#define KEY_L 0x4B 
 
 #define KEY_BREAK 0xF0
 
@@ -101,9 +101,13 @@ static const int note_duration_64[NUM_NOTE_TYPES] = {
 static const int note_num_heads[NUM_NOTE_TYPES] = {
     1, 1, 1, 2, 4, 2, 1, 1};
 
+#ifdef TOTAL_COLS
+#undef TOTAL_COLS
+#endif
+#define TOTAL_COLS 17
+
 #define SLOTS_PER_STAFF ((LINES_PER_STAFF - 1) * 2 + 3)
 #define TOTAL_ROWS (NUM_STAVES * SLOTS_PER_STAFF)
-#define TOTAL_COLS 17
 
 #define CURSOR_COLOR ((short int)0x051F)
 #define WHITE ((short int)0xFFFF)
@@ -254,7 +258,7 @@ static void erase_cursor_cell(int cx, int cy)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Note glyph primitives
+   Note glyph primitives (MUST precede draw_note_instance)
    ═══════════════════════════════════════════════════════════════════════ */
 static void filled_oval(int ax, int ay, short int c)
 {
@@ -392,6 +396,9 @@ static void beam_segment(int x0, int y0, int x1, int y1, int thick, short int c)
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Complex Note Rendering
+   ═══════════════════════════════════════════════════════════════════════ */
 static void draw_note_instance(const Note *n, short int c)
 {
     int i;
@@ -537,9 +544,6 @@ static void draw_note_instance(const Note *n, short int c)
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Erase & Redraw
-   ═══════════════════════════════════════════════════════════════════════ */
 static void erase_note_instance(const Note *n)
 {
     int x, y, i, min_x, max_x, min_y, max_y;
@@ -569,13 +573,54 @@ static void erase_note_instance(const Note *n)
 static void redraw_all_notes(void)
 {
     for (int i = 0; i < num_notes; i++) {
-        if (notes[i].page == cur_page) draw_note_instance(&notes[i], COLOR_BLACK);
+        if (notes[i].page == cur_page) {
+            draw_note_instance(&notes[i], COLOR_BLACK);
+        }
     }
+}
+
+void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
+{
+    Note mini; int nh = note_num_heads[nt];
+    mini.note_type = nt; mini.accidental = accidental; mini.num_heads = nh;
+    mini.head_x[0] = cx; mini.head_y[0] = cy;
+    for (int i = 1; i < nh; i++) { mini.head_x[i] = cx + i * 9; mini.head_y[i] = cy; }
+    draw_note_instance(&mini, c);
+}
+
+void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
+{
+    for (int y = 210; y < FB_HEIGHT; y++) for (int x = 0; x < FB_WIDTH; x++) plot_pixel(x, y, bg[y][x]);
+    g_drawing_ui = 1;
+    tb_draw_string(5, 222, "CURRENT:", BLACK);
+    draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
+    draw_page_indicator(cur_p, max_p);
+    draw_bottom_tab();
+    g_drawing_ui = 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Note management helpers
    ═══════════════════════════════════════════════════════════════════════ */
+static void switch_page(int new_page, int cur_x, int cur_y) {
+    if (new_page < 1 || new_page > max_pages) return;
+    cur_page = new_page;
+    build_and_draw_background();
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental);
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    redraw_all_notes();
+    draw_cursor_cell(cur_x, cur_y);
+}
+
+static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental, int cur_x, int cur_y)
+{
+    num_notes = 0; build_and_draw_background(); safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental);
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    draw_cursor_cell(cur_x, cur_y);
+}
+
 static void fill_note_heads(Note *n, int col, int staff, int slot, int sx, int sy, int nt)
 {
     int nh = note_num_heads[nt]; n->num_heads = nh;
@@ -653,6 +698,7 @@ static void delete_note(int cur_col, int cur_staff, int cur_slot, int cur_x, int
         for (int h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] == cur_col && notes[i].head_pitch_slot[h] == cur_slot) {
                 erase_note_instance(&notes[i]);
+                
                 notes[i] = notes[num_notes - 1]; num_notes--;
                 redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
                 return;
@@ -662,7 +708,7 @@ static void delete_note(int cur_col, int cur_staff, int cur_slot, int cur_x, int
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   PS/2 & HUD Helpers
+   PS/2 Helpers
    ═══════════════════════════════════════════════════════════════════════ */
 static int ps2_read_byte(volatile int *ps2)
 {
@@ -686,47 +732,8 @@ static void keyboard_init(void)
     ps2_flush(ps2);
 }
 
-void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
-{
-    Note mini; int nh = note_num_heads[nt];
-    mini.note_type = nt; mini.accidental = accidental; mini.num_heads = nh;
-    mini.head_x[0] = cx; mini.head_y[0] = cy;
-    for (int i = 1; i < nh; i++) { mini.head_x[i] = cx + i * 9; mini.head_y[i] = cy; }
-    draw_note_instance(&mini, c);
-}
-
-void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
-{
-    for (int y = 210; y < FB_HEIGHT; y++) for (int x = 0; x < FB_WIDTH; x++) plot_pixel(x, y, bg[y][x]);
-    g_drawing_ui = 1;
-    tb_draw_string(5, 222, "CURRENT:", BLACK);
-    draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
-    draw_page_indicator(cur_p, max_p);
-    draw_bottom_tab();
-    g_drawing_ui = 0;
-}
-
-static void switch_page(int new_page, int cur_x, int cur_y) {
-    if (new_page < 1 || new_page > max_pages) return;
-    cur_page = new_page;
-    build_and_draw_background();
-    safe_draw_toolbar(cur_note_type);
-    safe_draw_row2(cur_accidental);
-    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-    redraw_all_notes();
-    draw_cursor_cell(cur_x, cur_y);
-}
-
-static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental, int cur_x, int cur_y)
-{
-    num_notes = 0; build_and_draw_background(); safe_draw_toolbar(cur_note_type);
-    safe_draw_row2(cur_accidental);
-    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-    draw_cursor_cell(cur_x, cur_y);
-}
-
 /* =======================================================================
-   Preload Song Logic 
+   Preload Song Logic
    ======================================================================= */
 static void inject_note(int col, int staff, int slot, int nt, int acc, int page) {
     if (num_notes >= MAX_NOTES) return;
@@ -741,34 +748,143 @@ static void inject_note(int col, int staff, int slot, int nt, int acc, int page)
 
 static void preload_ode_to_joy(void) {
     num_notes = 0;
-    int slots[128] = { 2,2,1,0, 0,1,2,3, 4,4,3,2, 2,3,3,3, 2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,4, 3,3,2,4, 3,2,2,4, 3,2,3,4, 4,3,7,7, 2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,4, 2,2,1,0, 0,1,2,3, 4,4,3,2, 2,3,3,3, 2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,4, 3,3,2,4, 3,2,2,4, 3,2,3,4, 4,3,7,7, 2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,4 };
-    int types[128]; for(int i=0; i<128; i++) types[i] = ((i%16)==14) ? 1 : ((i%16)==15 ? 7 : 2);
-    for (int i = 0; i < 128; i++) inject_note((i%16)+1, (i%64)/16, slots[i], types[i], 0, (i/64)+1);
-    max_pages = 2; toolbar_state.bpm = 160;
+    int slots[128] = { 
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 2,3,3,-1, 
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,-1, 
+        3,3,2,4, 3,2,2,4, 3,2,3,4, 4,3,-1,-1, 
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,-1, 
+        
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 2,3,3,-1, 
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,-1, 
+        3,3,2,4, 3,2,2,4, 3,2,3,4, 4,3,-1,-1, 
+        2,2,1,0, 0,1,2,3, 4,4,3,2, 3,4,4,-1 
+    };
+    for (int i = 0; i < 128; i++) {
+        int is_rest = (slots[i] == -1);
+        int draw_slot = is_rest ? 4 : slots[i]; 
+        int nt = is_rest ? NOTE_REST : NOTE_QUARTER;
+        inject_note((i%16)+1, (i%64)/16, draw_slot, nt, 0, (i/64)+1);
+    }
+    max_pages = 2; toolbar_state.bpm = 180;
 }
 
-static void preload_helwa_ya_baladi(void) {
+static void preload_nour_el_ain(void) {
     num_notes = 0;
-    int song_slots[64] = { 0,0,3,3,4,5,6,7, 7,6,5,4,5,6,7,3, 4,4,0,0,1,2,3,4, 4,3,2,1,2,3,4,3, 0,0,3,3,4,5,6,7, 7,6,5,4,5,6,7,3, 4,4,0,0,1,2,3,4, 4,3,2,1,2,3,4,3 };
-    int song_types[64]; for(int i=0; i<64; i++) song_types[i] = ((i%16)==14) ? 1 : ((i%16)==15 ? 7 : 2);
-    int song_accs[64]  = { 0,0,0,0,0,2,0,0, 0,0,2,0,2,0,0,0, 0,0,0,0,0,2,0,0, 0,0,2,0,2,0,0,0, 0,0,0,0,0,2,0,0, 0,0,2,0,2,0,0,0, 0,0,0,0,0,2,0,0, 0,0,2,0,2,0,0,0 };
-    for (int i = 0; i < 64; i++) inject_note((i%16)+1, i/16, song_slots[i], song_types[i], song_accs[i], 1);
-    max_pages = 1; toolbar_state.bpm = 120;
+    
+    /* Amr Diab - Nour El Ain (Intro Riff & Chorus)
+       Mapped for the Step Sequencer (16th note rhythm at high BPM)
+       Key: D minor (Requires Flats on the B notes!) */
+    int slots[128] = { 
+        /* PAGE 1: Intro Riff */
+        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
+        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1, 
+        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
+        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1,
+        /* PAGE 2: Chorus (Habibi ya nour el ain) */
+        6, -1, 6, -1,  6, -1, 6, -1,  7, 8, 7, -1,  -1, -1, -1, -1,
+        7, -1, 7, -1,  7, -1, 7, -1,  8, 9, 8, -1,  -1, -1, -1, -1,
+        8, -1, 8, -1,  8, -1, 8, -1,  9, 10, 9, -1,  -1, -1, -1, -1,
+        9, -1, 9, -1,  9, -1, 9, -1,  8, 9, 10, -1,  -1, -1, -1, -1
+    };
+    
+    int accs[128] = {0}; 
+    /* Set flats for Page 1 B4s (slot 5) to keep it in D minor */
+    accs[4] = 2; accs[10] = 2;
+    accs[36] = 2; accs[42] = 2;
+    
+    for (int i = 0; i < 128; i++) {
+        if (slots[i] == -1) continue;
+        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, accs[i], (i/64)+1);
+    }
+    
+    max_pages = 2; 
+    toolbar_state.bpm = 220; 
 }
 
 static void preload_fur_elise(void) {
     num_notes = 0;
-    int slots[64] = { 2,2,2,2, 2,5,3,4, 6,7,10,9, 6,5,7,7, 5,7,9,6, 5,4,7,9, 6,7,7,10, 6,5,7,7, 2,2,2,2, 2,5,3,4, 6,7,10,9, 6,9,6,7, 5,3,1,0, 2,7,4,9, 6,5,7,7, 2,2,2,7 };
-    int accs[64] = { 0,1,0,1, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0, 0,1,0,1, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,1,0,0 };
-    for (int i = 0; i < 64; i++) inject_note((i%16)+1, i/16, slots[i], (slots[i]==7)?7:2, accs[i], 1);
-    max_pages = 1; toolbar_state.bpm = 90;
+    int slots[128] = { 
+        /* Page 1, Staff 0 */
+        2, 2, 2, 2,   2, 5, 3, 4,   6, -1, 10, 9,   6, 5, -1, 9,
+        /* Page 1, Staff 1 */
+        7, 5, 4, -1,  9, 2, 2, 2,   2, 2, 5, 3,   4, 6, -1, 10,
+        /* Page 1, Staff 2 */
+        9, 6, 5, -1,  9, 4, 5, 6,  -1, 5, 4, 3,   2, 7, 1, 2,
+        /* Page 1, Staff 3 */
+        3, 8, 2, 3,   4, 9, 3, 4,   5, 9, 2, 2,   2, 2, 2, 2,
+        /* Page 2, Staff 0 */
+        2, 5, 3, 4,   6, -1, 10, 9,   6, 5, -1, 9,   9, 4, 5, 6,
+        /* Page 2, Staff 1-3 */
+        -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+        -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+        -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1
+    };
+    int accs[128] = { 
+        0, 1, 0, 1,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,
+        1, 0, 0, 0,   0, 0, 1, 0,   1, 0, 0, 0,   0, 0, 0, 0,
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 1,   0, 1, 0, 1,
+        
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,
+        0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0
+    };
+
+    for (int i = 0; i < 128; i++) {
+        if (slots[i] == -1) continue;
+        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, accs[i], (i/64)+1);
+    }
+    max_pages = 2; 
+    toolbar_state.bpm = 240; 
 }
 
 static void preload_do_re_mi(void) {
     num_notes = 0;
-    int slots[64] = { 4,3,2,4, 2,4,2,7, 3,1,2,3, 1,3,1,7, 2,0,1,2, 0,2,0,7, 1,6,0,1, 6,1,6,7, 0,4,3,2, 1,0,7,7, 6,5,4,7, 7,7,7,7, 4,3,2,1, 0,6,5,4, 4,7,7,7, 7,7,7,7 };
-    for (int i = 0; i < 64; i++) inject_note((i%16)+1, i/16, slots[i], (slots[i]==7)?7:2, 0, 1);
-    max_pages = 1; toolbar_state.bpm = 110;
+    int c;
+    int slot_cycle = 0;
+
+    /* Page 1, Staff 0: Whole Notes (nt=0, heads=1) */
+    for (c = 1; c <= 16; c += 4) {
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 1);
+    }
+    /* Page 1, Staff 1: Half Notes (nt=1, heads=1) */
+    for (c = 1; c <= 16; c += 2) {
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 1);
+    }
+    /* Page 1, Staff 2: Quarter Notes (nt=2, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 1);
+    }
+    /* Page 1, Staff 3: Beam2 8ths (nt=3, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 3, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 1);
+    }
+
+    /* Page 2, Staff 0: Beam4 16ths (nt=4, heads=4) */
+    for (c = 1; c <= 13; c += 4) { 
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 1: Beam2 16ths (nt=5, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 2: Single 16ths (nt=6, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 3: Rests and Accidentals mixed */
+    for (c = 1; c <= 16; c++) {
+        if (c % 2 == 1) {
+            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 2);
+        } else {
+            int acc = (c % 4 == 0) ? ACC_SHARP : ACC_FLAT;
+            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 2);
+        }
+    }
+
+    max_pages = 2; 
+    toolbar_state.bpm = 90;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -783,11 +899,21 @@ int main(void)
 
 restart_main_menu:
     num_notes = 0; cur_page = 1; max_pages = 1; g_start_screen_active = 1;
+    
+    int got_break = 0, got_extended = 0, menu_open = 0, menu_state = MENU_STATE_MAIN;
+    active_page_nav = 0; active_page_struct = 0;
+
     draw_start_screen();
+    
+    int got_break_start = 0;
     while (g_start_screen_active) {
         int raw = ps2_read_byte(ps2); if (raw < 0) continue;
         unsigned char b = (unsigned char)raw;
-        if (b == KEY_BREAK) { ps2_read_byte(ps2); continue; }
+        
+        if (b == 0xE0) continue;
+        if (b == KEY_BREAK) { got_break_start = 1; continue; }
+        if (got_break_start) { got_break_start = 0; continue; }
+        
         if (b == KEY_W) { g_start_selection = 1; update_start_selection(1); }
         if (b == KEY_S) { g_start_selection = 2; update_start_selection(2); }
         if (b == KEY_1) { g_start_selection = 1; g_start_screen_active = 0; }
@@ -797,16 +923,40 @@ restart_main_menu:
 
     if (g_start_selection == 2) {
         draw_song_select_screen(); g_start_screen_active = 1;
+        got_break_start = 0;
+        g_song_selection = 1; 
+        
         while (g_start_screen_active) {
             int raw = ps2_read_byte(ps2); if (raw < 0) continue;
             unsigned char b = (unsigned char)raw;
-            if (b == KEY_BREAK) { ps2_read_byte(ps2); continue; }
-            if (b == KEY_1) { preload_ode_to_joy(); g_start_screen_active = 0; }
-            if (b == KEY_2) { preload_helwa_ya_baladi(); g_start_screen_active = 0; }
-            if (b == KEY_3) { preload_fur_elise(); g_start_screen_active = 0; }
-            if (b == KEY_4) { preload_do_re_mi(); g_start_screen_active = 0; }
-            if (b == KEY_5) { goto restart_main_menu; }
+            
+            if (b == 0xE0) continue;
+            if (b == KEY_BREAK) { got_break_start = 1; continue; }
+            if (got_break_start) { got_break_start = 0; continue; }
+            
+            if (b == KEY_W) { 
+                if (g_song_selection > 1) g_song_selection--; 
+                update_song_selection(g_song_selection); 
+            }
+            if (b == KEY_S) { 
+                if (g_song_selection < 5) g_song_selection++; 
+                update_song_selection(g_song_selection); 
+            }
+
+            if (b == KEY_1) { g_song_selection = 1; g_start_screen_active = 0; }
+            if (b == KEY_2) { g_song_selection = 2; g_start_screen_active = 0; }
+            if (b == KEY_3) { g_song_selection = 3; g_start_screen_active = 0; }
+            if (b == KEY_4) { g_song_selection = 4; g_start_screen_active = 0; }
+            if (b == KEY_5) { g_song_selection = 5; g_start_screen_active = 0; }
+            
+            if (b == KEY_SPACE) g_start_screen_active = 0;
         }
+        
+        if (g_song_selection == 1) { preload_do_re_mi(); }
+        else if (g_song_selection == 2) { preload_fur_elise(); }
+        else if (g_song_selection == 3) { preload_ode_to_joy(); }
+        else if (g_song_selection == 4) { preload_nour_el_ain(); }
+        else if (g_song_selection == 5) { goto restart_main_menu; }
     }
 
     build_and_draw_background(); safe_draw_toolbar(cur_note_type);
@@ -815,7 +965,6 @@ restart_main_menu:
     int cur_col = 1, cur_row = 0, cur_staff = 0, cur_slot = 0;
     int cur_x = col_to_x(cur_col), cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
     redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
-    int got_break = 0, got_extended = 0, menu_open = 0;
 
     while (1) {
         int raw = ps2_read_byte(ps2); if (raw < 0) continue;
@@ -835,28 +984,54 @@ restart_main_menu:
             got_break = 0; got_extended = 0; continue;
         }
 
+        /* 1. Toggle Menu Logic */
         if (b == KEY_M) {
             if (menu_open) {
                 menu_open = 0;
+                menu_state = MENU_STATE_MAIN;
                 build_and_draw_background(); safe_draw_toolbar(cur_note_type);
                 safe_draw_row2(cur_accidental); update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
                 redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open = 1; g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
+                menu_open = 1;
+                menu_state = MENU_STATE_MAIN;
+                g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
             }
-            continue;
-        }
-
-        if (menu_open) {
-            if (b == KEY_1) toolbar_set_instrument(TB_INST_BEEP);
-            if (b == KEY_2) { menu_open = 0; goto restart_main_menu; } /* BACK TO MAIN MENU */
-            if (b == KEY_3) toolbar_set_instrument(TB_INST_PIANO_REVERB);
             continue;
         }
 
         if (b == KEY_N) { clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y); continue; }
 
-        if (b >= KEY_1 && b <= KEY_8) {
+        /* 2. Two-Tier Menu State Machine */
+        if (menu_open) {
+            if (menu_state == MENU_STATE_MAIN) {
+                if (b == KEY_1) {
+                    menu_state = MENU_STATE_INSTRUMENT;
+                    g_drawing_ui = 1; draw_options_menu_instrument(); g_drawing_ui = 0;
+                    continue;
+                }
+                if (b == KEY_2) {
+                    menu_open = 0;
+                    menu_state = MENU_STATE_MAIN;
+                    goto restart_main_menu;
+                }
+            } else if (menu_state == MENU_STATE_INSTRUMENT) {
+                if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP); continue; }
+                if (b == KEY_2) { toolbar_set_instrument(TB_INST_PIANO); continue; }
+                if (b == KEY_3) { toolbar_set_instrument(3); continue; } 
+                if (b == KEY_5) {
+                    menu_state = MENU_STATE_MAIN;
+                    g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
+                    continue;
+                }
+            }
+            continue;
+        }
+
+        /* 3. Note Selection (Explicit checking prevents swallowing WASD) */
+        int is_note_key = (b == KEY_1 || b == KEY_2 || b == KEY_3 || b == KEY_4 ||
+                           b == KEY_5 || b == KEY_6 || b == KEY_7 || b == KEY_8);
+        if (is_note_key) {
             if (b == KEY_1) cur_note_type = NOTE_WHOLE;
             if (b == KEY_2) cur_note_type = NOTE_HALF;
             if (b == KEY_3) cur_note_type = NOTE_QUARTER;
@@ -869,6 +1044,7 @@ restart_main_menu:
             continue;
         }
 
+        /* 4. Audio Controls */
         if (b == KEY_Q || b == KEY_R) {
             int start_p = (b == KEY_R) ? 1 : cur_page;
             while (1) {
@@ -888,6 +1064,7 @@ restart_main_menu:
             continue;
         }
 
+        /* 5. Navigation & Pitch Editing (Arrows) */
         if (got_extended) {
             if (b == KEY_LEFT) { active_page_nav |= (1 << 0); switch_page(cur_page - 1, cur_x, cur_y); safe_draw_row2(cur_accidental); }
             else if (b == KEY_RIGHT) { active_page_nav |= (1 << 1); switch_page(cur_page + 1, cur_x, cur_y); safe_draw_row2(cur_accidental); }
@@ -900,9 +1077,11 @@ restart_main_menu:
             got_extended = 0; continue;
         }
 
+        /* 6. Page Structure (K/L) */
         if (b == KEY_K) { active_page_struct |= (1 << 0); if (max_pages < 8) max_pages++; update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); safe_draw_row2(cur_accidental); continue; }
         if (b == KEY_L) { active_page_struct |= (1 << 1); if (max_pages > 1) { int i = 0; while (i < num_notes) { if (notes[i].page == max_pages) { notes[i] = notes[num_notes - 1]; num_notes--; } else i++; } max_pages--; if (cur_page > max_pages) switch_page(max_pages, cur_x, cur_y); else update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); } safe_draw_row2(cur_accidental); continue; }
 
+        /* 7. Accidentals (ZXCV) */
         if (b == KEY_Z || b == KEY_X || b == KEY_C || b == KEY_V) {
             if (b == KEY_Z) cur_accidental = ACC_NONE;
             if (b == KEY_X) cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
@@ -912,22 +1091,28 @@ restart_main_menu:
             continue;
         }
 
+        /* 8. Placement & Deletion */
         if (b == KEY_SPACE) {
             if (cur_note_type == NOTE_REST) {
                 int rs = SLOTS_PER_STAFF / 2; int rr = cur_staff * SLOTS_PER_STAFF + rs; int ry = row_to_y(rr, 0, 0);
-                place_note(cur_col, cur_staff, rs, cur_x, ry, cur_note_type); redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+                place_note(cur_col, cur_staff, rs, cur_x, ry, cur_note_type); redraw_all_notes(); draw_cursor_cell(cur_x, ry);
             } else place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
             continue;
         }
         if (b == KEY_DELETE) { delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y); continue; }
 
+        /* 9. Tempo */
         if (b == KEY_MINUS) { toolbar_set_bpm(toolbar_state.bpm - 5); safe_draw_toolbar(cur_note_type); continue; }
         if (b == KEY_EQUALS) { toolbar_set_bpm(toolbar_state.bpm + 5); safe_draw_toolbar(cur_note_type); continue; }
 
+        /* 10. Cursor Movement (WASD) */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
             int nc = cur_col, nr = cur_row;
-            if (b == KEY_W && cur_row > 0) nr--; if (b == KEY_S && cur_row < TOTAL_ROWS - 1) nr++;
-            if (b == KEY_A && cur_col > 1) nc--; if (b == KEY_D && cur_col < TOTAL_COLS - 1) nc++;
+            if (b == KEY_W && cur_row > 0) nr--; 
+            if (b == KEY_S && cur_row < TOTAL_ROWS - 1) nr++;
+            if (b == KEY_A && cur_col > 1) nc--; 
+            if (b == KEY_D && cur_col < TOTAL_COLS - 1) nc++;
+            
             if (nc != cur_col || nr != cur_row) {
                 erase_cursor_cell(cur_x, cur_y); cur_col = nc; cur_row = nr;
                 cur_x = col_to_x(cur_col); cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);

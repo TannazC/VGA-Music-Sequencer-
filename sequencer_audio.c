@@ -306,7 +306,7 @@ static void play_piano_buf(volatile audio_t *audiop,
         int32_t s;
         if (buf_len > 0) {
             int idx = t % buf_len;
-            s = (int32_t)buf[idx] * 256; 
+            s = (int32_t)buf[idx] * 350; 
             s = clamp24(s);
         } else {
             s = 0;
