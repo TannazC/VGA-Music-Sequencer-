@@ -303,25 +303,54 @@ static void silence(volatile audio_t *audiop, int num_samples)
     }
 }
 
-static void play_piano_buf(volatile audio_t *audiop,
-                           const int16_t *buf, int buf_len,
-                           int num_samples)
+/* Volume multiplier for sampled instruments.
+   Raised from 350 to 768 so piano/xylophone RMS matches the beep square wave. */
+#define SAMPLE_AMP  768
+
+/* Number of samples at the end of a piano buffer to loop for sustain.
+   Piano samples fully decay to silence at ~91% of their length, so
+   looping the last SUSTAIN_LOOP_LEN samples before that silence region
+   gives a smooth held-note extension without the attack repeating. */
+#define SUSTAIN_LOOP_LEN  256
+
+static void play_sample_buf(volatile audio_t *audiop,
+                            const int16_t *buf, int buf_len,
+                            int num_samples, int one_shot)
 {
+    /* one_shot = 1  -> play sample once, then output silence (xylophone)
+       one_shot = 0  -> play sample once, then loop tail for sustain (piano) */
     int t;
     for (t = 0; t < num_samples; t++) {
         int32_t s;
-        if (buf_len > 0) {
-            int idx = t % buf_len;
-            s = (int32_t)buf[idx] * 350; 
-            s = clamp24(s);
-        } else {
+        if (buf_len <= 0) {
             s = 0;
+        } else if (t < buf_len) {
+            /* Still inside the recorded sample — play it straight through */
+            s = clamp24((int32_t)buf[t] * SAMPLE_AMP);
+        } else if (one_shot) {
+            /* Xylophone / percussive: natural decay finished, output silence */
+            s = 0;
+        } else {
+            /* Piano sustain: loop a short tail segment from just before the
+               silence region so the note sounds held rather than cut off */
+            int loop_start = buf_len - SUSTAIN_LOOP_LEN;
+            if (loop_start < 0) loop_start = 0;
+            int loop_idx = loop_start + ((t - buf_len) % SUSTAIN_LOOP_LEN);
+            s = clamp24((int32_t)buf[loop_idx] * SAMPLE_AMP);
         }
         while (audiop->wsrc == 0 || audiop->wslc == 0)
             ;
         audiop->ldata = (uint32_t)s;
         audiop->rdata = (uint32_t)s;
     }
+}
+
+/* Legacy wrapper kept so nothing else breaks */
+static void play_piano_buf(volatile audio_t *audiop,
+                           const int16_t *buf, int buf_len,
+                           int num_samples)
+{
+    play_sample_buf(audiop, buf, buf_len, num_samples, 0);
 }
 
 static void get_sample_buf(int inst, int slot, int accidental,
@@ -405,8 +434,9 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 } else {
                     const int16_t *buf;
                     int            buf_len;
+                    int            one_shot = (inst == TB_INST_XYLOPHONE) ? 1 : 0;
                     get_sample_buf(inst, slot, notes[i].accidental, &buf, &buf_len);
-                    play_piano_buf(audiop, buf, buf_len, head_s);
+                    play_sample_buf(audiop, buf, buf_len, head_s, one_shot);
                 }
                 found = 1;
             }
