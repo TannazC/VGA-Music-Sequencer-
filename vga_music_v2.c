@@ -75,6 +75,12 @@ volatile int seq_is_paused = 0;
 volatile int seq_user_stopped = 0;
 volatile int seq_user_restarted = 0;
 
+/* Playback stop-after position: audio engine stops after this column on this page.
+   Set to -1/-1/-1 to disable (play through everything). */
+int seq_last_note_page  = -1;
+int seq_last_note_staff = -1;
+int seq_last_note_col   = -1;
+
 #define UI_SAFE_ZONE 46
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1046,7 +1052,28 @@ restart_main_menu:
 
         /* 4. Audio Controls */
         if (b == KEY_Q || b == KEY_R) {
-            int start_p = (b == KEY_R) ? 1 : cur_page;
+            int start_p = 1; /* Q and R both always restart from page 1 */
+
+            /* Compute last page+staff+col containing any note so the playhead
+               stops right after it instead of scrolling through empty space. */
+            {
+                int lp = -1, ls = -1, lc = -1, i;
+                for (i = 0; i < num_notes; i++) {
+                    int np = notes[i].page;
+                    int ns = notes[i].staff;
+                    int nc_max = notes[i].head_step[notes[i].num_heads - 1];
+                    /* Compare: later page wins; then later staff; then later col */
+                    if (np > lp
+                        || (np == lp && ns > ls)
+                        || (np == lp && ns == ls && nc_max > lc)) {
+                        lp = np; ls = ns; lc = nc_max;
+                    }
+                }
+                seq_last_note_page  = lp;
+                seq_last_note_staff = ls;
+                seq_last_note_col   = lc;
+            }
+
             while (1) {
                 if (cur_page != start_p) switch_page(start_p, cur_x, cur_y);
                 toolbar_state.playback = TB_STATE_PLAYING; safe_draw_toolbar(cur_note_type);
@@ -1055,6 +1082,8 @@ restart_main_menu:
                     seq_user_stopped = 0; seq_user_restarted = 0; seq_is_playing = 1; seq_is_paused = 0;
                     play_sequence();
                     if (seq_user_restarted || seq_user_stopped) break;
+                    /* Stop advancing pages once we have passed the last note page */
+                    if (seq_last_note_page >= 1 && p >= seq_last_note_page) break;
                 }
                 if (seq_user_restarted) { start_p = 1; continue; }
                 break;

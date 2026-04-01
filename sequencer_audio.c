@@ -110,6 +110,12 @@ extern volatile int seq_is_paused;
 extern volatile int seq_user_stopped;
 extern volatile int seq_user_restarted;
 
+/* Stop-after position: play_sequence exits once it finishes this col on this page.
+   -1/-1/-1 means no early stop (play through the whole page). */
+extern int seq_last_note_page;
+extern int seq_last_note_staff;
+extern int seq_last_note_col;
+
 /* ═══════════════════════════════════════════════════════════════════════
    Pitch table - slot 0 (top line, F5) -> slot 8 (bottom line, E4)
    ═══════════════════════════════════════════════════════════════════════ */
@@ -470,6 +476,16 @@ void play_sequence(void)
             draw_playhead(col, s);
             play_column(audiop, col, s);
             erase_playhead();
+
+            /* If this is the last-note page+staff and we just finished the last
+               column that contains a note, stop immediately - no more sound. */
+            if (seq_last_note_page >= 1
+                    && cur_page == seq_last_note_page
+                    && s == seq_last_note_staff
+                    && col >= seq_last_note_col) {
+                seq_is_playing = 0;
+                break;
+            }
         }
     }
     
