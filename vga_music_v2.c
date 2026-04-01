@@ -1008,7 +1008,7 @@ restart_main_menu:
             } else if (menu_state == MENU_STATE_INSTRUMENT) {
                 if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP); continue; }
                 if (b == KEY_2) { toolbar_set_instrument(TB_INST_PIANO); continue; }
-                if (b == KEY_3) { toolbar_set_instrument(TB_INST_PIANO_REVERB); continue; }
+                if (b == KEY_3) { toolbar_set_instrument(3); continue; } 
                 if (b == KEY_5) {
                     menu_state = MENU_STATE_MAIN;
                     g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
