@@ -771,37 +771,33 @@ static void preload_ode_to_joy(void) {
 static void preload_nour_el_ain(void) {
     num_notes = 0;
     
-    /* Amr Diab - Nour El Ain (Intro Riff)
+    /* Amr Diab - Nour El Ain (Intro Riff & Chorus)
        Mapped for the Step Sequencer (16th note rhythm at high BPM)
        Key: D minor (Requires Flats on the B notes!) */
-    int slots[64] = { 
-        /* Staff 0: D5  C5  Bb4 A4  | G4 A4 Bb4 A4 G4  (rests) */
+    int slots[128] = { 
+        /* PAGE 1: Intro Riff */
         3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        /* Staff 1: F4  G4  A4  G4  F4  | E4 | D4      (rests) */
         8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1, 
-        /* Staff 2: Repeat Staff 0 */
         3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        /* Staff 3: Repeat Staff 1 */
-        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1 
+        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1,
+        /* PAGE 2: Chorus (Habibi ya nour el ain) */
+        6, -1, 6, -1,  6, -1, 6, -1,  7, 8, 7, -1,  -1, -1, -1, -1,
+        7, -1, 7, -1,  7, -1, 7, -1,  8, 9, 8, -1,  -1, -1, -1, -1,
+        8, -1, 8, -1,  8, -1, 8, -1,  9, 10, 9, -1,  -1, -1, -1, -1,
+        9, -1, 9, -1,  9, -1, 9, -1,  8, 9, 10, -1,  -1, -1, -1, -1
     };
     
-    int accs[64]  = { 
-        /* We inject ACC_FLAT (2) exclusively onto slot 5 (B4) */
-        0, 0, 0, 0,  2, 0, 0, 0,  0, 0, 2, 0,  0, 0, 0, 0, 
-        0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 
-        0, 0, 0, 0,  2, 0, 0, 0,  0, 0, 2, 0,  0, 0, 0, 0, 
-        0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0 
-    };
+    int accs[128] = {0}; 
+    /* Set flats for Page 1 B4s (slot 5) to keep it in D minor */
+    accs[4] = 2; accs[10] = 2;
+    accs[36] = 2; accs[42] = 2;
     
-    for (int i = 0; i < 64; i++) {
-        int is_rest = (slots[i] == -1);
-        int draw_slot = is_rest ? 4 : slots[i]; 
-        int nt = is_rest ? NOTE_REST : NOTE_QUARTER;
-        inject_note((i%16)+1, i/16, draw_slot, nt, accs[i], 1);
+    for (int i = 0; i < 128; i++) {
+        if (slots[i] == -1) continue;
+        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, accs[i], (i/64)+1);
     }
     
-    max_pages = 1; 
-    /* Very fast tempo to make the quarter notes feel like 16th notes */
+    max_pages = 2; 
     toolbar_state.bpm = 220; 
 }
 
