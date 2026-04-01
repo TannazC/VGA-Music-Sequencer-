@@ -272,10 +272,10 @@ void update_start_selection(int active_opt) {
    Song-select submenu  (appears after choosing option 2)
    ================================================================= */
 void update_song_selection(int active_opt) {
-    draw_option(50,  99, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
-    draw_option(50, 123, 220, 22, '2', "O CANADA",            (active_opt == 2));
-    draw_option(50, 147, 220, 22, '3', "FUR ELISE",           (active_opt == 3));
-    draw_option(50, 171, 220, 22, '4', "DO RE MI",            (active_opt == 4));
+    draw_option(50,  99, 220, 22, '1', "DO RE MI",          (active_opt == 1));
+    draw_option(50, 123, 220, 22, '2', "FUR ELISE",            (active_opt == 2));
+    draw_option(50, 147, 220, 22, '3', "ODE TO JOY",           (active_opt == 3));
+    draw_option(50, 171, 220, 22, '4', "NOUR EL AIN",            (active_opt == 4));
     draw_option(50, 201, 220, 22, '5', "BACK TO MAIN MENU",   0);
 }
 
