@@ -248,22 +248,13 @@ void draw_toolbar(int cur_note_type) {
 /* =======================================================================
    Row 2: Accidentals & Actions
    ======================================================================= */
-void draw_toolbar_row2(int cur_accidental) {
-        
-    tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_BG);
-    tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_DIV);
+void draw_toolbar_row2(int cur_accidental, int active_page_nav, int active_page_struct) {
     int x = 4;
-    int split_x = x + 38;
-    int badge_y = ROW2_Y + 2;
-    tb_badge_at(x, ROW2_Y, 52, "", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
-    tb_vline(split_x, badge_y + 3, badge_y + BADGE_H - 3, COLOR_BLACK);
-    tb_draw_string(x + 5, badge_y + 3, "CLEAR", COLOR_WHITE);
-    tb_draw_string(split_x + 5, badge_y + 3, "N", COLOR_WHITE);
-    x += 52 + BADGE_GAP;
-    x += GROUP_SEP/2; 
-    tb_group_div(x, ROW2_Y); 
-    x += GROUP_SEP/2;
 
+    tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H + 1, TB_BG);
+    tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H + 1, TB_DIV);
+
+    /* == 1. ACCIDENTALS [Z X C V] == */
     const char* acc_labels[] = {"Z", "X", "C", "V"}; 
     for(int i = 0; i < 4; i++) {
         short int fill = (i == cur_accidental) ? COLOR_FUCHSIA : COLOR_WHITE;
@@ -271,26 +262,79 @@ void draw_toolbar_row2(int cur_accidental) {
         x = tb_badge_at(x, ROW2_Y, 14, acc_labels[i], fill, txt) + BADGE_GAP;
     }
 
-    /* Navigation arrows: up/down/left/right (W/S/A/D) */
-    x -= BADGE_GAP;
-    x += GROUP_SEP/2;
-    tb_group_div(x, ROW2_Y);
-    x += GROUP_SEP/2;
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
 
-    x = tb_badge_at(x, ROW2_Y, 14, "W", COLOR_WHITE, COLOR_BLACK) + BADGE_GAP;
-    x = tb_badge_at(x, ROW2_Y, 14, "S", COLOR_WHITE, COLOR_BLACK) + BADGE_GAP;
-    x = tb_badge_at(x, ROW2_Y, 14, "A", COLOR_WHITE, COLOR_BLACK) + BADGE_GAP;
-    x = tb_badge_at(x, ROW2_Y, 14, "D", COLOR_WHITE, COLOR_BLACK) + BADGE_GAP;
+    /* == 2. PAGE NAVIGATION [ PREV | <- ] and [ NEXT | -> ] == */
+    const char* pg_nav_labels[] = {"PREV", "NEXT"};
+    const char* pg_nav_keys[]   = {"<", ">"};
+    for(int i = 0; i < 2; i++) {
+        int is_pressed = (active_page_nav & (1 << i));
+        int label_w = 28;
+        int key_w = 12;
+        int badge_w = label_w + key_w;
+        int split_x = x + label_w;
+        
+        tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H, is_pressed ? COLOR_MUTED_NEON_BLUE : RGB565(180, 200, 210));
+        tb_fill(split_x, ROW2_Y + 3, x + badge_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+        
+        tb_hline(x, x + badge_w, ROW2_Y + 3, COLOR_BLACK);
+        tb_hline(x, x + badge_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x + badge_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        
+        tb_draw_string(x + 3, ROW2_Y + 6, pg_nav_labels[i], is_pressed ? COLOR_WHITE : COLOR_BLACK);
+        tb_draw_string(split_x + 4, ROW2_Y + 6, pg_nav_keys[i], COLOR_BLACK);
+        
+        x += badge_w + BADGE_GAP;
+    }
 
-    /* Page navigation: < and > (COMMA / PERIOD) */
-    x -= BADGE_GAP;
-    x += GROUP_SEP/2;
-    tb_group_div(x, ROW2_Y);
-    x += GROUP_SEP/2;
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
 
-    x = tb_badge_at(x, ROW2_Y, 14, "<", COLOR_CITRIC, COLOR_BLACK) + BADGE_GAP;
-    x = tb_badge_at(x, ROW2_Y, 14, ">", COLOR_CITRIC, COLOR_BLACK);
+    /* == 3. PAGE STRUCTURE [ +PG | K ] and [ -PG | L ] == */
+    const char* struct_labels[] = {"+PG", "-PG"};
+    const char* struct_keys[]   = {"K", "L"};
+    for(int i = 0; i < 2; i++) {
+        int is_pressed = (active_page_struct & (1 << i));
+        int label_w = 24;
+        int key_w = 12;
+        int badge_w = label_w + key_w;
+        int split_x = x + label_w;
+        
+        tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H, is_pressed ? COLOR_NEON_SPEARMINT : COLOR_SPEARMINT);
+        tb_fill(split_x, ROW2_Y + 3, x + badge_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+        
+        tb_hline(x, x + badge_w, ROW2_Y + 3, COLOR_BLACK);
+        tb_hline(x, x + badge_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x + badge_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        
+        tb_draw_string(x + 3, ROW2_Y + 6, struct_labels[i], COLOR_WHITE);
+        tb_draw_string(split_x + 4, ROW2_Y + 6, struct_keys[i], COLOR_BLACK);
+        
+        x += badge_w + BADGE_GAP;
+    }
 
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
+
+    /* == 4. CLEAR BADGE [ CLEAR | N ] == */
+    int label_w = 34;
+    int key_w = 12;
+    int clear_w = label_w + key_w; 
+    int split_x = x + label_w;
+    
+    tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H , COLOR_MUTED_NEON_BLUE);
+    tb_fill(split_x, ROW2_Y + 3, x + clear_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+    
+    tb_hline(x, x + clear_w, ROW2_Y + 3, COLOR_BLACK);
+    tb_hline(x, x + clear_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(x + clear_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    
+    tb_draw_string(x + 3, ROW2_Y + 6, "CLEAR", COLOR_WHITE);
+    tb_draw_string(split_x + 4, ROW2_Y + 6, "N", COLOR_BLACK);
 }
 
 /* =======================================================================

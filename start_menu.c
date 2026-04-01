@@ -291,8 +291,8 @@ void draw_song_select_screen(void) {
 
     draw_custom_logo_bitmap(1.5);
 
-    draw_hline(50, 90, 220, COLOR_SPEARMINT);
-    draw_string_centered(SCREEN_W / 2, 93, "SELECT A SONG", 1, COLOR_SPEARMINT);
+    draw_hline(50, 80, 220, COLOR_SPEARMINT);
+    draw_string_centered(SCREEN_W / 2, 85, "SELECT A SONG", 1, COLOR_SPEARMINT);
 
     update_song_selection(g_song_selection);
 }

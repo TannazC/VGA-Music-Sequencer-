@@ -12,6 +12,7 @@ FILES_TO_COMBINE = [
     "sequencer_audio.h",
     "start_menu.h",
     "piano_samples.h",
+    "xylophone_samples.h",
     "start_menu.c",
     "background.c",
     "toolbar.c",

@@ -92,7 +92,7 @@ extern ToolbarState toolbar_state;
 void draw_toolbar(int cur_note_type);
 
 /* Draws Row 2: Accidentals [Z X C V], Clear [N], and Options [M] */
-void draw_toolbar_row2(int cur_accidental);
+void draw_toolbar_row2(int cur_accidental, int active_page_nav, int active_page_struct);
 
 /* Updates only the 8 note-type badges in Row 1 */
 void toolbar_set_note_type(int cur_note_type);
