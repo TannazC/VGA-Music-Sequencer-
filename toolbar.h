@@ -58,6 +58,7 @@
 #define TB_INST_BEEP         0 
 #define TB_INST_PIANO        1 
 #define TB_INST_PIANO_REVERB 2 
+#define TB_INST_XYLOPHONE    3
 
 /* -- Playback state -- */
 #define TB_STATE_STOPPED  0
@@ -73,6 +74,10 @@
 #define MENU_X1  250
 #define MENU_Y1  200
 
+/* -- Menu submenu state -- */
+#define MENU_STATE_MAIN        0   /* Top-level: 1=Change Instrument, 2=Go Back */
+#define MENU_STATE_INSTRUMENT  1   /* Sub-level: 1=BEEP, 2=Piano, 3=Go Back    */
+
 /* -- Global toolbar state -- */
 typedef struct {
     int instrument; /* TB_INST_BEEP / _PIANO / _PIANO_REVERB */
@@ -87,7 +92,7 @@ extern ToolbarState toolbar_state;
 void draw_toolbar(int cur_note_type);
 
 /* Draws Row 2: Accidentals [Z X C V], Clear [N], and Options [M] */
-void draw_toolbar_row2(int cur_accidental);
+void draw_toolbar_row2(int cur_accidental, int active_page_nav, int active_page_struct);
 
 /* Updates only the 8 note-type badges in Row 1 */
 void toolbar_set_note_type(int cur_note_type);
@@ -101,8 +106,11 @@ void toolbar_set_bpm(int bpm);
 /* Highlights the currently selected instrument inside the pop-up menu */
 void toolbar_set_instrument(int inst);
 
-/* Draws the centered instrument-selection pop-up menu */
+/* Draws the centered main options pop-up menu (1=Change Instrument, 2=Go Back) */
 void draw_options_menu(void);
+
+/* Draws the instrument sub-menu (1=BEEP, 2=Piano, 3=Go Back) */
+void draw_options_menu_instrument(void);
 
 /* Draws the page count (e.g., "PAGE 1/1") at the bottom right */
 void draw_page_indicator(int cur_page, int max_pages);

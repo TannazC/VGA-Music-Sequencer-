@@ -248,30 +248,93 @@ void draw_toolbar(int cur_note_type) {
 /* =======================================================================
    Row 2: Accidentals & Actions
    ======================================================================= */
-void draw_toolbar_row2(int cur_accidental) {
-        
-    tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_BG);
-    tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H - 1, TB_DIV);
+void draw_toolbar_row2(int cur_accidental, int active_page_nav, int active_page_struct) {
     int x = 4;
-    int split_x = x + 38;
-    int badge_y = ROW2_Y + 2;
-    tb_badge_at(x, ROW2_Y, 52, "", COLOR_MUTED_NEON_BLUE, COLOR_WHITE);
-    tb_vline(split_x, badge_y + 3, badge_y + BADGE_H - 3, COLOR_BLACK);
-    tb_draw_string(x + 5, badge_y + 3, "CLEAR", COLOR_WHITE);
-    tb_draw_string(split_x + 5, badge_y + 3, "N", COLOR_WHITE);
-    x += 52 + BADGE_GAP;
-    x += GROUP_SEP/2; 
-    tb_group_div(x, ROW2_Y); 
-    x += GROUP_SEP/2;
 
+    tb_fill(0, ROW2_Y, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H + 1, TB_BG);
+    tb_hline(0, FB_WIDTH - 1, ROW2_Y + BADGE_AREA_H + 1, TB_DIV);
+
+    /* == 1. ACCIDENTALS [Z X C V] == */
     const char* acc_labels[] = {"Z", "X", "C", "V"}; 
     for(int i = 0; i < 4; i++) {
         short int fill = (i == cur_accidental) ? COLOR_FUCHSIA : COLOR_WHITE;
         short int txt  = (i == cur_accidental) ? COLOR_WHITE : COLOR_BLACK;
         x = tb_badge_at(x, ROW2_Y, 14, acc_labels[i], fill, txt) + BADGE_GAP;
     }
-    
 
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
+
+    /* == 2. PAGE NAVIGATION [ PREV | <- ] and [ NEXT | -> ] == */
+    const char* pg_nav_labels[] = {"PREV", "NEXT"};
+    const char* pg_nav_keys[]   = {"<", ">"};
+    for(int i = 0; i < 2; i++) {
+        int is_pressed = (active_page_nav & (1 << i));
+        int label_w = 28;
+        int key_w = 12;
+        int badge_w = label_w + key_w;
+        int split_x = x + label_w;
+        
+        tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H, is_pressed ? COLOR_MUTED_NEON_BLUE : RGB565(180, 200, 210));
+        tb_fill(split_x, ROW2_Y + 3, x + badge_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+        
+        tb_hline(x, x + badge_w, ROW2_Y + 3, COLOR_BLACK);
+        tb_hline(x, x + badge_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x + badge_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        
+        tb_draw_string(x + 3, ROW2_Y + 6, pg_nav_labels[i], is_pressed ? COLOR_WHITE : COLOR_BLACK);
+        tb_draw_string(split_x + 4, ROW2_Y + 6, pg_nav_keys[i], COLOR_BLACK);
+        
+        x += badge_w + BADGE_GAP;
+    }
+
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
+
+    /* == 3. PAGE STRUCTURE [ +PG | K ] and [ -PG | L ] == */
+    const char* struct_labels[] = {"+PG", "-PG"};
+    const char* struct_keys[]   = {"K", "L"};
+    for(int i = 0; i < 2; i++) {
+        int is_pressed = (active_page_struct & (1 << i));
+        int label_w = 24;
+        int key_w = 12;
+        int badge_w = label_w + key_w;
+        int split_x = x + label_w;
+        
+        tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H, is_pressed ? COLOR_NEON_SPEARMINT : COLOR_SPEARMINT);
+        tb_fill(split_x, ROW2_Y + 3, x + badge_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+        
+        tb_hline(x, x + badge_w, ROW2_Y + 3, COLOR_BLACK);
+        tb_hline(x, x + badge_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(x + badge_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+        
+        tb_draw_string(x + 3, ROW2_Y + 6, struct_labels[i], COLOR_WHITE);
+        tb_draw_string(split_x + 4, ROW2_Y + 6, struct_keys[i], COLOR_BLACK);
+        
+        x += badge_w + BADGE_GAP;
+    }
+
+    x += GROUP_SEP/2; tb_group_div(x, ROW2_Y); x += GROUP_SEP/2;
+
+    /* == 4. CLEAR BADGE [ CLEAR | N ] == */
+    int label_w = 34;
+    int key_w = 12;
+    int clear_w = label_w + key_w; 
+    int split_x = x + label_w;
+    
+    tb_fill(x, ROW2_Y + 3, split_x, ROW2_Y + BADGE_H , COLOR_MUTED_NEON_BLUE);
+    tb_fill(split_x, ROW2_Y + 3, x + clear_w, ROW2_Y + BADGE_H, COLOR_WHITE);
+    
+    tb_hline(x, x + clear_w, ROW2_Y + 3, COLOR_BLACK);
+    tb_hline(x, x + clear_w, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(x + clear_w, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    tb_vline(split_x, ROW2_Y + 3, ROW2_Y + BADGE_H, COLOR_BLACK);
+    
+    tb_draw_string(x + 3, ROW2_Y + 6, "CLEAR", COLOR_WHITE);
+    tb_draw_string(split_x + 4, ROW2_Y + 6, "N", COLOR_BLACK);
 }
 
 /* =======================================================================
@@ -334,24 +397,40 @@ static void menu_draw_row(int y, const char *label, const char *key, short int f
 }
 
 void draw_options_menu(void) {
-    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER); // Shadow
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER); /* Shadow */
     tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
     tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
 
     tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
-    int inst = toolbar_state.instrument;
-    menu_draw_row(MENU_Y0 + 45, "BEEP",   "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
-    menu_draw_row(MENU_Y0 + 70, "PIANO",  "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
-    menu_draw_row(MENU_Y0 + 95, "REVERB", "3", TB_STOP_FILL,  COLOR_WHITE, inst == TB_INST_PIANO_REVERB);
-    
+    /* Main level: 1=Change Instrument, 2=Go Back to Main Menu */
+    menu_draw_row(MENU_Y0 + 45, "CHANGE INSTRUMENT", "1", TB_PLAY_FILL,  COLOR_WHITE, 0);
+    menu_draw_row(MENU_Y0 + 75, "MAIN MENU",         "2", TB_STOP_FILL,  COLOR_WHITE, 0);
+
     tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+}
+
+void draw_options_menu_instrument(void) {
+    int iy1 = MENU_Y0 + 140;
+    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, iy1 + 4, TB_BORDER); /* Shadow */
+    tb_fill(MENU_X0, MENU_Y0, MENU_X1, iy1, COLOR_BLACK);
+    tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, iy1 - 2, TB_BG);
+
+    tb_draw_string(MENU_X0 + 30, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PAUSE_FILL);
+    tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
+
+    int inst = toolbar_state.instrument;
+    menu_draw_row(MENU_Y0 + 45, "BEEP",      "1", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_BEEP);
+    menu_draw_row(MENU_Y0 + 70, "PIANO",     "2", TB_PAUSE_FILL, COLOR_WHITE, inst == TB_INST_PIANO);
+    menu_draw_row(MENU_Y0 + 95, "XYLOPHONE", "3", TB_PLAY_FILL,  COLOR_WHITE, inst == TB_INST_XYLOPHONE);
+
+    tb_draw_string(MENU_X0 + 32, iy1 - 18, "PRESS M TO CLOSE", TB_STOP_FILL);
 }
 
 void toolbar_set_instrument(int inst) {
     toolbar_state.instrument = inst;
-    draw_options_menu();
+    draw_options_menu_instrument();
 }
 
 void toolbar_set_bpm(int bpm) {
@@ -375,4 +454,3 @@ void toolbar_set_note_type(int cur_note_type) {
         tb_badge(note_badge_x(i), BADGE_W1, label, fill, txt);
     }
 }
-

@@ -10,6 +10,7 @@
 #include "sequencer_audio.h"
 #include "toolbar.h"
 #include "piano_samples.h"
+#include "xylophone_samples.h"
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware
@@ -163,7 +164,7 @@ static int samples_per_64_current(void)
     return quarter_samples_current() / 16;
 }
 
-#define SQ_AMP  0x600000
+#define SQ_AMP  0x7A0000
 
 /* ═══════════════════════════════════════════════════════════════════════
    Visual - playhead geometry
@@ -317,42 +318,53 @@ static void play_piano_buf(volatile audio_t *audiop,
     }
 }
 
-static void get_piano_buf(int slot, int accidental, int reverb,
+static void get_sample_buf(int inst, int slot, int accidental,
                            const int16_t **out_buf, int *out_len)
 {
     if (slot < 0 || slot >= 11) { *out_buf = 0; *out_len = 0; return; }
 
-    if (reverb) {
-        switch (accidental) {
-        case ACC_SHARP:
-            *out_buf = piano_rev_sharp_table[slot];
-            *out_len = piano_rev_sharp_len_table[slot];
-            break;
-        case ACC_FLAT:
-            *out_buf = piano_rev_flat_table[slot];
-            *out_len = piano_rev_flat_len_table[slot];
-            break;
-        default:
-            *out_buf = piano_rev_nat_table[slot];
-            *out_len = piano_rev_nat_len_table[slot];
-            break;
-        }
-    } else {
-        switch (accidental) {
-        case ACC_SHARP:
-            *out_buf = piano_sharp_table[slot];
-            *out_len = piano_sharp_len_table[slot];
-            break;
-        case ACC_FLAT:
-            *out_buf = piano_flat_table[slot];
-            *out_len = piano_flat_len_table[slot];
-            break;
-        default:
-            *out_buf = piano_nat_table[slot];
-            *out_len = piano_nat_len_table[slot];
-            break;
-        }
+    /* Select the right table set based on instrument */
+    const int16_t * const *nat_tbl;
+    const int              *nat_len;
+    const int16_t * const *sharp_tbl;
+    const int              *sharp_len;
+    const int16_t * const *flat_tbl;
+    const int              *flat_len;
+
+    switch (inst) {
+    case TB_INST_XYLOPHONE:
+        nat_tbl   = xylophone_nat_table;   nat_len   = xylophone_nat_len_table;
+        sharp_tbl = xylophone_sharp_table; sharp_len = xylophone_sharp_len_table;
+        flat_tbl  = xylophone_flat_table;  flat_len  = xylophone_flat_len_table;
+        break;
+    case TB_INST_PIANO_REVERB:
+        nat_tbl   = piano_rev_nat_table;   nat_len   = piano_rev_nat_len_table;
+        sharp_tbl = piano_rev_sharp_table; sharp_len = piano_rev_sharp_len_table;
+        flat_tbl  = piano_rev_flat_table;  flat_len  = piano_rev_flat_len_table;
+        break;
+    default: /* TB_INST_PIANO */
+        nat_tbl   = piano_nat_table;   nat_len   = piano_nat_len_table;
+        sharp_tbl = piano_sharp_table; sharp_len = piano_sharp_len_table;
+        flat_tbl  = piano_flat_table;  flat_len  = piano_flat_len_table;
+        break;
     }
+
+    switch (accidental) {
+    case ACC_SHARP:
+        *out_buf = sharp_tbl[slot]; *out_len = sharp_len[slot]; break;
+    case ACC_FLAT:
+        *out_buf = flat_tbl[slot];  *out_len = flat_len[slot];  break;
+    default:
+        *out_buf = nat_tbl[slot];   *out_len = nat_len[slot];   break;
+    }
+}
+
+/* kept for backward compatibility */
+static void get_piano_buf(int slot, int accidental, int reverb,
+                           const int16_t **out_buf, int *out_len)
+{
+    int inst = reverb ? TB_INST_PIANO_REVERB : TB_INST_PIANO;
+    get_sample_buf(inst, slot, accidental, out_buf, out_len);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -387,9 +399,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 } else {
                     const int16_t *buf;
                     int            buf_len;
-                    int reverb = (inst == TB_INST_PIANO_REVERB) ? 1 : 0;
-                    get_piano_buf(slot, notes[i].accidental, reverb,
-                                  &buf, &buf_len);
+                    get_sample_buf(inst, slot, notes[i].accidental, &buf, &buf_len);
                     play_piano_buf(audiop, buf, buf_len, head_s);
                 }
                 found = 1;

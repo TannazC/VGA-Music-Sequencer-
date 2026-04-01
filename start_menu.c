@@ -11,6 +11,7 @@ extern void plot_pixel(int x, int y, short int c);
 
 volatile int g_start_screen_active = 0;
 int g_start_selection = 1;
+int g_song_selection  = 1;   /* 1=Ode to Joy, 2=O Canada, 3=Fur Elise, 4=Do Re Mi */
 
 /* -------------------------------------------------------
    Colour palette  (RGB 5-6-5)  — additional colours local to the start screen
@@ -266,4 +267,32 @@ void draw_start_screen(void) {
 void update_start_selection(int active_opt) {
     draw_option(80, 115, 160, 24, '1', "CREATE YOUR OWN", (active_opt == 1));
     draw_option(80, 145, 160, 24, '2', "PRELOAD SONG",    (active_opt == 2));
+}
+
+/* =================================================================
+   Song-select submenu  (appears after choosing option 2)
+   ================================================================= */
+void update_song_selection(int active_opt) {
+    draw_option(50,  99, 220, 22, '1', "ODE TO JOY",          (active_opt == 1));
+    draw_option(50, 123, 220, 22, '2', "O CANADA",            (active_opt == 2));
+    draw_option(50, 147, 220, 22, '3', "FUR ELISE",           (active_opt == 3));
+    draw_option(50, 171, 220, 22, '4', "DO RE MI",            (active_opt == 4));
+    draw_option(50, 201, 220, 22, '5', "BACK TO MAIN MENU",   0);
+}
+
+void draw_song_select_screen(void) {
+    g_start_screen_active = 1;
+    g_song_selection = 1;
+
+    fill_rect(0, 0, SCREEN_W, SCREEN_H, COLOR_PINK_BG);
+
+    draw_staff(14);
+    draw_treble_clef(10, 14 - 6, COLOR_STAFF);
+
+    draw_custom_logo_bitmap(1.5);
+
+    draw_hline(50, 80, 220, COLOR_SPEARMINT);
+    draw_string_centered(SCREEN_W / 2, 85, "SELECT A SONG", 1, COLOR_SPEARMINT);
+
+    update_song_selection(g_song_selection);
 }
