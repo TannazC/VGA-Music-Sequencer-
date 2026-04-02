@@ -45,7 +45,7 @@
 #define COLOR_FUCHSIA         RGB565(240,  55, 165)
 #define COLOR_CITRIC          RGB565(205, 245, 100)
 #define COLOR_MUTED_NEON_BLUE RGB565( 69, 185, 220)
-#define COLOR_WHITE           RGB565(255, 255, 255)
+#define COLOR_WHITE           RGB565(255, 228, 238)
 #define COLOR_BLACK           RGB565(  0,   0,   0)
 #define COLOR_GRAY            RGB565(200, 150, 170)
 

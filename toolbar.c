@@ -77,6 +77,7 @@ ToolbarState toolbar_state = {
 #define TB_NOTE_TXT     COLOR_BLACK
 #define TB_NOTEA_FILL   COLOR_SPEARMINT
 #define TB_NOTEA_TXT    COLOR_WHITE
+#define DARK_PINK       RGB565(180, 80, 110)
 
 /* =======================================================================
    Unified Rendering Logic
@@ -360,7 +361,7 @@ void draw_page_indicator(int cur_page, int max_pages) {
     /* Logic to center the text exactly in the middle of the screen */
     int cx = (FB_WIDTH - page_w) / 2; 
 
-    tb_draw_string(cx, y, page_str, COLOR_BLACK);
+    tb_draw_string(cx, y, page_str, DARK_PINK);
 }
 
 /* Restored bottom-right tab for the Options menu */
@@ -401,21 +402,21 @@ void draw_options_menu(void) {
     tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
     tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
 
-    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", TB_PAUSE_FILL);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", COLOR_CITRIC);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
     /* Main level: 1=Change Instrument, 2=Go Back to Main Menu */
     menu_draw_row(MENU_Y0 + 45, "CHANGE INSTRUMENT", "1", TB_PLAY_FILL,  COLOR_WHITE, 0);
     menu_draw_row(MENU_Y0 + 75, "MAIN MENU",         "2", TB_STOP_FILL,  COLOR_WHITE, 0);
 
-    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", TB_STOP_FILL);
+    tb_draw_string(MENU_X0 + 32, MENU_Y1 - 20, "PRESS M TO CLOSE", DARK_PINK);
 }
 
 void draw_options_menu_instrument(void) {
     int iy1 = MENU_Y0 + 140;
     tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
     tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
-    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "SELECT INSTRUMENT", TB_PLAY_FILL);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "SELECT INSTRUMENT", COLOR_CITRIC);
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
     
     int inst = toolbar_state.instrument;
@@ -428,7 +429,7 @@ void draw_options_menu_instrument(void) {
     tb_draw_string(MENU_X0 + 15, MENU_Y0 + 45, "[1] BEEP", c1);
     tb_draw_string(MENU_X0 + 15, MENU_Y0 + 65, "[2] PIANO", c2);
     tb_draw_string(MENU_X0 + 15, MENU_Y0 + 85, "[3] XYLOPHONE", c3);
-    tb_draw_string(MENU_X0 + 32, iy1 - 18, "PRESS M TO CLOSE", TB_STOP_FILL);
+    tb_draw_string(MENU_X0 + 32, iy1 - 18, "PRESS M TO CLOSE", DARK_PINK);
 }
 
 void toolbar_set_instrument(int inst) {

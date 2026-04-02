@@ -9,7 +9,7 @@
 
 #define BLACK  ((short int)0x0000)
 #define BG_PINK               RGB565(250, 217, 229) 
-#define NOTE_GREEN            RGB565(1, 54, 13)
+#define NOTE_GREEN            RGB565(180, 80, 110)
 /* ═══════════════════════════════════════════════════════════════════════
    Background buffer
 
@@ -238,7 +238,7 @@ void build_and_draw_background(void)
     for (s = 0; s < NUM_STAVES; s++)
         draw_treble_clef(STAFF_X0 + 1,
                          staff_top[s] - STAFF_SPACING,
-                         NOTE_GREEN);
+                         BLACK);
 
     /* ── Step 6: flush PS/2 FIFO ─────────────────────────────────────────
        Why this matters:
