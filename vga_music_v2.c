@@ -75,6 +75,12 @@ volatile int seq_is_paused = 0;
 volatile int seq_user_stopped = 0;
 volatile int seq_user_restarted = 0;
 
+/* Playback stop-after position: audio engine stops after this column on this page.
+   Set to -1/-1/-1 to disable (play through everything). */
+int seq_last_note_page  = -1;
+int seq_last_note_staff = -1;
+int seq_last_note_col   = -1;
+
 #define UI_SAFE_ZONE 46
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -590,7 +596,7 @@ void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
 
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
 {
-    for (int y = 210; y < FB_HEIGHT; y++) for (int x = 0; x < FB_WIDTH; x++) plot_pixel(x, y, bg[y][x]);
+    for (int y = 220; y < FB_HEIGHT; y++) for (int x = 0; x < FB_WIDTH; x++) plot_pixel(x, y, bg[y][x]);
     g_drawing_ui = 1;
     tb_draw_string(5, 222, "CURRENT:", BLACK);
     draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
@@ -746,6 +752,29 @@ static void inject_note(int col, int staff, int slot, int nt, int acc, int page)
     num_notes++;
 }
 
+/* Perfectly beams two distinct pitches side-by-side using the provided note type */
+static void inject_pair(int col, int staff, int slot1, int slot2, int acc, int page, int nt) {
+    if (num_notes >= MAX_NOTES) return;
+    Note *n = &notes[num_notes];
+    n->step = col; n->staff = staff; n->pitch_slot = slot1; 
+    n->note_type = nt; 
+    n->duration_64 = note_duration_64[nt]; n->accidental = acc; n->page = page;
+    
+    int sx = col_to_x(col); n->num_heads = 2;
+    n->head_step[0] = col; n->head_pitch_slot[0] = slot1;
+    n->head_x[0] = sx; n->head_y[0] = row_to_y(staff * SLOTS_PER_STAFF + slot1, NULL, NULL);
+    
+    n->head_step[1] = col + 1; n->head_pitch_slot[1] = slot2;
+    n->head_x[1] = sx + STEP_W; n->head_y[1] = row_to_y(staff * SLOTS_PER_STAFF + slot2, NULL, NULL);
+    
+    n->screen_x = sx; n->screen_y = n->head_y[0];
+    
+    for (int i = 2; i < MAX_HEADS; i++) {
+        n->head_step[i] = n->head_pitch_slot[i] = 0; n->head_x[i] = n->head_y[i] = 0;
+    }
+    num_notes++;
+}
+
 static void preload_ode_to_joy(void) {
     num_notes = 0;
     int slots[128] = { 
@@ -766,39 +795,6 @@ static void preload_ode_to_joy(void) {
         inject_note((i%16)+1, (i%64)/16, draw_slot, nt, 0, (i/64)+1);
     }
     max_pages = 2; toolbar_state.bpm = 180;
-}
-
-static void preload_nour_el_ain(void) {
-    num_notes = 0;
-    
-    /* Amr Diab - Nour El Ain (Intro Riff & Chorus)
-       Mapped for the Step Sequencer (16th note rhythm at high BPM)
-       Key: D minor (Requires Flats on the B notes!) */
-    int slots[128] = { 
-        /* PAGE 1: Intro Riff */
-        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1, 
-        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1,
-        /* PAGE 2: Chorus (Habibi ya nour el ain) */
-        6, -1, 6, -1,  6, -1, 6, -1,  7, 8, 7, -1,  -1, -1, -1, -1,
-        7, -1, 7, -1,  7, -1, 7, -1,  8, 9, 8, -1,  -1, -1, -1, -1,
-        8, -1, 8, -1,  8, -1, 8, -1,  9, 10, 9, -1,  -1, -1, -1, -1,
-        9, -1, 9, -1,  9, -1, 9, -1,  8, 9, 10, -1,  -1, -1, -1, -1
-    };
-    
-    int accs[128] = {0}; 
-    /* Set flats for Page 1 B4s (slot 5) to keep it in D minor */
-    accs[4] = 2; accs[10] = 2;
-    accs[36] = 2; accs[42] = 2;
-    
-    for (int i = 0; i < 128; i++) {
-        if (slots[i] == -1) continue;
-        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, accs[i], (i/64)+1);
-    }
-    
-    max_pages = 2; 
-    toolbar_state.bpm = 220; 
 }
 
 static void preload_fur_elise(void) {
@@ -839,48 +835,85 @@ static void preload_fur_elise(void) {
     toolbar_state.bpm = 240; 
 }
 
+static void preload_seven_nation_army(void) {
+    num_notes = 0;
+
+    /* The White Stripes - Seven Nation Army*/
+
+    /* Staff 0: Main Riff */
+    inject_note( 1, 0,  2, NOTE_QUARTER, ACC_NONE, 1);
+    inject_pair( 3, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 5, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 7, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 8, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Repeat Main Riff */
+    inject_note( 9, 0,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair( 10, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 12, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 14, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 15, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Staff 2: The Tumbling Variation */
+    inject_note( 16, 0,  2, NOTE_QUARTER, ACC_NONE, 1);
+    inject_pair( 2, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 4, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 6, 1,  4,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 8, 1,  4, NOTE_QUARTER, ACC_NONE, 1);
+    inject_note( 9, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Staff 3: Back to Main Riff */
+    inject_note(10, 1,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair(11, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair(13, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 15, 1,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 16, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    max_pages = 1;
+    toolbar_state.bpm = 120;
+}
 static void preload_do_re_mi(void) {
     num_notes = 0;
     int c;
     int slot_cycle = 0;
 
-    /* Page 1, Staff 0: Whole Notes (nt=0, heads=1) */
-    for (c = 1; c <= 16; c += 4) {
-        inject_note(c, 0, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 1: Half Notes (nt=1, heads=1) */
-    for (c = 1; c <= 16; c += 2) {
-        inject_note(c, 1, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 2: Quarter Notes (nt=2, heads=1) */
-    for (c = 1; c <= 16; c++) {
-        inject_note(c, 2, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 3: Beam2 8ths (nt=3, heads=2) */
-    for (c = 1; c <= 15; c += 2) { 
-        inject_note(c, 3, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 1);
-    }
-
-    /* Page 2, Staff 0: Beam4 16ths (nt=4, heads=4) */
+    /* Page 1, Staff 0: Beam4 16ths (nt=4, heads=4) */
     for (c = 1; c <= 13; c += 4) { 
-        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 2);
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 1: Beam2 16ths (nt=5, heads=2) */
+    /* Page 1, Staff 1: Beam2 16ths (nt=5, heads=2) */
     for (c = 1; c <= 15; c += 2) { 
-        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 2);
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 2: Single 16ths (nt=6, heads=1) */
+    /* Page 1, Staff 2: Single 16ths (nt=6, heads=1) */
     for (c = 1; c <= 16; c++) {
-        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 2);
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 3: Rests and Accidentals mixed */
+    /* Page 1, Staff 3: Rests and Accidentals mixed */
     for (c = 1; c <= 16; c++) {
         if (c % 2 == 1) {
-            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 2);
+            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 1);
         } else {
             int acc = (c % 4 == 0) ? ACC_SHARP : ACC_FLAT;
-            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 2);
+            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 1);
         }
+    }
+
+    /* Page 2, Staff 0: Beam2 8ths (nt=3, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 1: Quarter Notes (nt=2, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 2: Half Notes (nt=1, heads=1) */
+    for (c = 1; c <= 16; c += 2) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 3: Whole Notes (nt=0, heads=1) */
+    for (c = 1; c <= 16; c += 4) {
+        inject_note(c, 3, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 2);
     }
 
     max_pages = 2; 
@@ -955,7 +988,7 @@ restart_main_menu:
         if (g_song_selection == 1) { preload_do_re_mi(); }
         else if (g_song_selection == 2) { preload_fur_elise(); }
         else if (g_song_selection == 3) { preload_ode_to_joy(); }
-        else if (g_song_selection == 4) { preload_nour_el_ain(); }
+        else if (g_song_selection == 4) { preload_seven_nation_army(); }
         else if (g_song_selection == 5) { goto restart_main_menu; }
     }
 
@@ -1046,7 +1079,28 @@ restart_main_menu:
 
         /* 4. Audio Controls */
         if (b == KEY_Q || b == KEY_R) {
-            int start_p = (b == KEY_R) ? 1 : cur_page;
+            int start_p = 1; /* Q and R both always restart from page 1 */
+
+            /* Compute last page+staff+col containing any note so the playhead
+               stops right after it instead of scrolling through empty space. */
+            {
+                int lp = -1, ls = -1, lc = -1, i;
+                for (i = 0; i < num_notes; i++) {
+                    int np = notes[i].page;
+                    int ns = notes[i].staff;
+                    int nc_max = notes[i].head_step[notes[i].num_heads - 1];
+                    /* Compare: later page wins; then later staff; then later col */
+                    if (np > lp
+                        || (np == lp && ns > ls)
+                        || (np == lp && ns == ls && nc_max > lc)) {
+                        lp = np; ls = ns; lc = nc_max;
+                    }
+                }
+                seq_last_note_page  = lp;
+                seq_last_note_staff = ls;
+                seq_last_note_col   = lc;
+            }
+
             while (1) {
                 if (cur_page != start_p) switch_page(start_p, cur_x, cur_y);
                 toolbar_state.playback = TB_STATE_PLAYING; safe_draw_toolbar(cur_note_type);
@@ -1055,6 +1109,8 @@ restart_main_menu:
                     seq_user_stopped = 0; seq_user_restarted = 0; seq_is_playing = 1; seq_is_paused = 0;
                     play_sequence();
                     if (seq_user_restarted || seq_user_stopped) break;
+                    /* Stop advancing pages once we have passed the last note page */
+                    if (seq_last_note_page >= 1 && p >= seq_last_note_page) break;
                 }
                 if (seq_user_restarted) { start_p = 1; continue; }
                 break;
