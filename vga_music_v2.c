@@ -797,48 +797,6 @@ static void preload_ode_to_joy(void) {
     max_pages = 2; toolbar_state.bpm = 180;
 }
 
-
-static void preload_nour_el_ain(void) {
-    num_notes = 0;
-    
-    /* Amr Diab - Nour El Ain (Chorus)
-       Packed tightly to the left side of the sequencer grid!
-       Key: G minor (Requires Flats on Bb4, Eb4, and Sharps on F#4) */
-    int slots[128] = { 
-        /* PAGE 1: Chorus */
-        /* Habibi, ya nour el ain [rest] Ya sakin khayali */
-        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
-        /* Asheq baqali sneen [rest] Wala ghayrak f baly */
-        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
-        /* Repeat Staff 0 */
-        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
-        /* Repeat Staff 1 */
-        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
-        
-        /* PAGE 2: Chorus Repeat */
-        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
-        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
-        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
-        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1
-    };
-    
-    for (int i = 0; i < 128; i++) {
-        if (slots[i] == -1) continue;
-        
-        /* Apply accurate accidentals automatically to match the key signature */
-        int acc = ACC_NONE;
-        if (slots[i] == 5) acc = ACC_FLAT;  /* Bb4 */
-        if (slots[i] == 8) acc = ACC_SHARP; /* F#4 */
-        if (slots[i] == 9) acc = ACC_FLAT;  /* Eb4 */
-        
-        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, acc, (i/64)+1);
-    }
-    
-    max_pages = 2; 
-    /* Lowered BPM since notes are packed together tightly */
-    toolbar_state.bpm = 110; 
-}
-
 static void preload_fur_elise(void) {
     num_notes = 0;
     int slots[128] = { 
@@ -876,81 +834,11 @@ static void preload_fur_elise(void) {
     max_pages = 2; 
     toolbar_state.bpm = 240; 
 }
-static void preload_twinkle_twinkle(void) {
-    num_notes = 0;
-    
-    /* Traditional - Twinkle Twinkle Little Star
-       Key: C Major (No accidentals)
-       Time Signature: 4/4 
-       Spacing: Every note takes exactly 2 columns for a clean visual */
 
-    /* PAGE 1: The Main Theme */
-    
-    /* Staff 0: C C G G A A G */
-    inject_note( 1, 0, 11, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 3, 0, 11, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 5, 0,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 7, 0,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 9, 0,  6, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(11, 0,  6, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(13, 0,  7, NOTE_HALF,    ACC_NONE, 1);
-
-    /* Staff 1: F F E E D D C */
-    inject_note( 1, 1,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 3, 1,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 5, 1,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 7, 1,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 9, 1, 10, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(11, 1, 10, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(13, 1, 11, NOTE_HALF,    ACC_NONE, 1);
-
-    /* Staff 2: G G F F E E D */
-    inject_note( 1, 2,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 3, 2,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 5, 2,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 7, 2,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 9, 2,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(11, 2,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(13, 2, 10, NOTE_HALF,    ACC_NONE, 1);
-
-    /* Staff 3: G G F F E E D */
-    inject_note( 1, 3,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 3, 3,  7, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 5, 3,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 7, 3,  8, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 9, 3,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(11, 3,  9, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note(13, 3, 10, NOTE_HALF,    ACC_NONE, 1);
-
-    /* PAGE 2: Return to Main Theme */
-    
-    /* Staff 0: C C G G A A G */
-    inject_note( 1, 0, 11, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 3, 0, 11, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 5, 0,  7, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 7, 0,  7, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 9, 0,  6, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note(11, 0,  6, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note(13, 0,  7, NOTE_HALF,    ACC_NONE, 2);
-
-    /* Staff 1: F F E E D D C */
-    inject_note( 1, 1,  8, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 3, 1,  8, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 5, 1,  9, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 7, 1,  9, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note( 9, 1, 10, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note(11, 1, 10, NOTE_QUARTER, ACC_NONE, 2);
-    inject_note(13, 1, 11, NOTE_HALF,    ACC_NONE, 2);
-
-    max_pages = 2; 
-    toolbar_state.bpm = 100; 
-}
 static void preload_seven_nation_army(void) {
     num_notes = 0;
 
-    /* The White Stripes - Seven Nation Army
-       Key: E Minor (No accidentals needed)
-       Packed Visuals: Letting the audio engine handle the sustain! */
+    /* The White Stripes - Seven Nation Army*/
 
     /* Staff 0: Main Riff */
     inject_note( 1, 0,  2, NOTE_HALF, ACC_NONE, 1);
