@@ -919,7 +919,6 @@ static void preload_do_re_mi(void) {
     max_pages = 2; 
     toolbar_state.bpm = 90;
 }
-
 volatile int *pixel_ctrl_global = (volatile int *)0xFF203020;
 
 // Uses the hardware registers to perform a true DMA double-buffer swap
@@ -1081,16 +1080,30 @@ restart_main_menu:
         if (b == 0xE0) { got_extended = 1; continue; }
         if (b == KEY_BREAK) { got_break = 1; continue; }
         
+        // Handle key releases
         if (got_break) {
-            if (got_extended) {
-                if (b == KEY_LEFT)  active_page_nav &= ~(1 << 0);
-                if (b == KEY_RIGHT) active_page_nav &= ~(1 << 1);
-            }
-            if (b == KEY_K) active_page_struct &= ~(1 << 0);
-            if (b == KEY_L) active_page_struct &= ~(1 << 1);
+            int needs_ui_update = 0;
             
-            sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
-            got_break = 0; got_extended = 0; continue;
+            if (got_extended) {
+                if (b == KEY_LEFT)  { active_page_nav &= ~(1 << 0); needs_ui_update = 1; }
+                if (b == KEY_RIGHT) { active_page_nav &= ~(1 << 1); needs_ui_update = 1; }
+            } else {
+                if (b == KEY_K) { active_page_struct &= ~(1 << 0); needs_ui_update = 1; }
+                if (b == KEY_L) { active_page_struct &= ~(1 << 1); needs_ui_update = 1; }
+            }
+            
+            // Only force a redraw if a UI element actually changed state on release
+            if (needs_ui_update) {
+                if (menu_open) {
+                    sync_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
+                } else {
+                    sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+                }
+            }
+            
+            got_break = 0; 
+            got_extended = 0; 
+            continue;
         }
 
         /* 1. Toggle Menu Logic */
