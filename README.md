@@ -104,7 +104,7 @@ cd path\to\vga_music_v2
 | Key | Action |
 |-----|--------|
 | `-` | Decrease BPM by 5 |
-| `=` | Increase BPM by 5 |
+| `+` | Increase BPM by 5 |
 
 ### Pages
 | Key | Action |
