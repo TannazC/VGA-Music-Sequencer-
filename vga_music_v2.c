@@ -778,33 +778,33 @@ static void preload_nour_el_ain(void) {
     num_notes = 0;
     
     /* Amr Diab - Nour El Ain (Intro Riff & Chorus)
-       Mapped for the Step Sequencer (16th note rhythm at high BPM)
+       Packed tightly to the left side of the sequencer grid!
        Key: D minor (Requires Flats on the B notes!) */
     int slots[128] = { 
         /* PAGE 1: Intro Riff */
-        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1, 
-        3, -1, 4, -1,  5, -1, 6, -1,  7, 6, 5, 6,  7, -1, -1, -1, 
-        8, 7, 6, 7,  8, -1, 9, -1,  10, -1, -1, -1,  -1, -1, -1, -1,
+        3, 4, 5, 6, 7, 6, 5, 6, 7, -1, -1, -1, -1, -1, -1, -1, 
+        8, 7, 6, 7, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+        3, 4, 5, 6, 7, 6, 5, 6, 7, -1, -1, -1, -1, -1, -1, -1, 
+        8, 7, 6, 7, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         /* PAGE 2: Chorus (Habibi ya nour el ain) */
-        6, -1, 6, -1,  6, -1, 6, -1,  7, 8, 7, -1,  -1, -1, -1, -1,
-        7, -1, 7, -1,  7, -1, 7, -1,  8, 9, 8, -1,  -1, -1, -1, -1,
-        8, -1, 8, -1,  8, -1, 8, -1,  9, 10, 9, -1,  -1, -1, -1, -1,
-        9, -1, 9, -1,  9, -1, 9, -1,  8, 9, 10, -1,  -1, -1, -1, -1
+        6, 6, 6, 6, 7, 8, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        7, 7, 7, 7, 8, 9, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        8, 8, 8, 8, 9, 10, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        9, 9, 9, 9, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1
     };
-    
-    int accs[128] = {0}; 
-    /* Set flats for Page 1 B4s (slot 5) to keep it in D minor */
-    accs[4] = 2; accs[10] = 2;
-    accs[36] = 2; accs[42] = 2;
     
     for (int i = 0; i < 128; i++) {
         if (slots[i] == -1) continue;
-        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, accs[i], (i/64)+1);
+        
+        /* Apply Flat to the B4s (slot 5) automatically */
+        int acc = (slots[i] == 5) ? ACC_FLAT : ACC_NONE;
+        
+        inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, acc, (i/64)+1);
     }
     
     max_pages = 2; 
-    toolbar_state.bpm = 220; 
+    /* Lowered BPM to 110 since notes are packed together */
+    toolbar_state.bpm = 110; 
 }
 
 static void preload_fur_elise(void) {
