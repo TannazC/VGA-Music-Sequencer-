@@ -596,7 +596,7 @@ void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
 
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
 {
-    for (int y = 220; y < FB_HEIGHT; y++) for (int x =65; x < (65 + FB_WIDTH); x++) plot_pixel(x, y, bg[y][x]);
+    for (int y = 215; y < FB_HEIGHT; y++) for (int x =50; x < (65 + FB_WIDTH); x++) plot_pixel(x, y, bg[y][x]);
     g_drawing_ui = 1;
     tb_draw_string(5, 222, "CURRENT:", BLACK);
     draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
