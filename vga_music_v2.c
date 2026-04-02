@@ -774,36 +774,45 @@ static void preload_ode_to_joy(void) {
     max_pages = 2; toolbar_state.bpm = 180;
 }
 
+
 static void preload_nour_el_ain(void) {
     num_notes = 0;
     
-    /* Amr Diab - Nour El Ain (Intro Riff & Chorus)
+    /* Amr Diab - Nour El Ain (Chorus)
        Packed tightly to the left side of the sequencer grid!
-       Key: D minor (Requires Flats on the B notes!) */
+       Key: G minor (Requires Flats on Bb4, Eb4, and Sharps on F#4) */
     int slots[128] = { 
-        /* PAGE 1: Intro Riff */
-        3, 4, 5, 6, 7, 6, 5, 6, 7, -1, -1, -1, -1, -1, -1, -1, 
-        8, 7, 6, 7, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-        3, 4, 5, 6, 7, 6, 5, 6, 7, -1, -1, -1, -1, -1, -1, -1, 
-        8, 7, 6, 7, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-        /* PAGE 2: Chorus (Habibi ya nour el ain) */
-        6, 6, 6, 6, 7, 8, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-        7, 7, 7, 7, 8, 9, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-        8, 8, 8, 8, 9, 10, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-        9, 9, 9, 9, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1
+        /* PAGE 1: Chorus */
+        /* Habibi, ya nour el ain [rest] Ya sakin khayali */
+        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
+        /* Asheq baqali sneen [rest] Wala ghayrak f baly */
+        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
+        /* Repeat Staff 0 */
+        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
+        /* Repeat Staff 1 */
+        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
+        
+        /* PAGE 2: Chorus Repeat */
+        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
+        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1,
+        5, 6, 5, 5, 4, 5, 6, -1, 6, 7, 6, 5, 6, 7, -1, -1,
+        7, 8, 7, 6, 7, 8, -1, 8, 9, 8, 7, 8, 9, 10, -1, -1
     };
     
     for (int i = 0; i < 128; i++) {
         if (slots[i] == -1) continue;
         
-        /* Apply Flat to the B4s (slot 5) automatically */
-        int acc = (slots[i] == 5) ? ACC_FLAT : ACC_NONE;
+        /* Apply accurate accidentals automatically to match the key signature */
+        int acc = ACC_NONE;
+        if (slots[i] == 5) acc = ACC_FLAT;  /* Bb4 */
+        if (slots[i] == 8) acc = ACC_SHARP; /* F#4 */
+        if (slots[i] == 9) acc = ACC_FLAT;  /* Eb4 */
         
         inject_note((i%16)+1, (i%64)/16, slots[i], NOTE_QUARTER, acc, (i/64)+1);
     }
     
     max_pages = 2; 
-    /* Lowered BPM to 110 since notes are packed together */
+    /* Lowered BPM since notes are packed together tightly */
     toolbar_state.bpm = 110; 
 }
 
@@ -850,43 +859,43 @@ static void preload_do_re_mi(void) {
     int c;
     int slot_cycle = 0;
 
-    /* Page 1, Staff 0: Whole Notes (nt=0, heads=1) */
-    for (c = 1; c <= 16; c += 4) {
-        inject_note(c, 0, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 1: Half Notes (nt=1, heads=1) */
-    for (c = 1; c <= 16; c += 2) {
-        inject_note(c, 1, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 2: Quarter Notes (nt=2, heads=1) */
-    for (c = 1; c <= 16; c++) {
-        inject_note(c, 2, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 1);
-    }
-    /* Page 1, Staff 3: Beam2 8ths (nt=3, heads=2) */
-    for (c = 1; c <= 15; c += 2) { 
-        inject_note(c, 3, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 1);
-    }
-
-    /* Page 2, Staff 0: Beam4 16ths (nt=4, heads=4) */
+    /* Page 1, Staff 0: Beam4 16ths (nt=4, heads=4) */
     for (c = 1; c <= 13; c += 4) { 
-        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 2);
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM4_16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 1: Beam2 16ths (nt=5, heads=2) */
+    /* Page 1, Staff 1: Beam2 16ths (nt=5, heads=2) */
     for (c = 1; c <= 15; c += 2) { 
-        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 2);
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_BEAM2_16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 2: Single 16ths (nt=6, heads=1) */
+    /* Page 1, Staff 2: Single 16ths (nt=6, heads=1) */
     for (c = 1; c <= 16; c++) {
-        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 2);
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_SINGLE16TH, ACC_NONE, 1);
     }
-    /* Page 2, Staff 3: Rests and Accidentals mixed */
+    /* Page 1, Staff 3: Rests and Accidentals mixed */
     for (c = 1; c <= 16; c++) {
         if (c % 2 == 1) {
-            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 2);
+            inject_note(c, 3, 4, NOTE_REST, ACC_NONE, 1);
         } else {
             int acc = (c % 4 == 0) ? ACC_SHARP : ACC_FLAT;
-            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 2);
+            inject_note(c, 3, (slot_cycle++) % 11, NOTE_QUARTER, acc, 1);
         }
+    }
+
+    /* Page 2, Staff 0: Beam2 8ths (nt=3, heads=2) */
+    for (c = 1; c <= 15; c += 2) { 
+        inject_note(c, 0, (slot_cycle++) % 11, NOTE_BEAM2_8TH, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 1: Quarter Notes (nt=2, heads=1) */
+    for (c = 1; c <= 16; c++) {
+        inject_note(c, 1, (slot_cycle++) % 11, NOTE_QUARTER, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 2: Half Notes (nt=1, heads=1) */
+    for (c = 1; c <= 16; c += 2) {
+        inject_note(c, 2, (slot_cycle++) % 11, NOTE_HALF, ACC_NONE, 2);
+    }
+    /* Page 2, Staff 3: Whole Notes (nt=0, heads=1) */
+    for (c = 1; c <= 16; c += 4) {
+        inject_note(c, 3, (slot_cycle++) % 11, NOTE_WHOLE, ACC_NONE, 2);
     }
 
     max_pages = 2; 
