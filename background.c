@@ -8,7 +8,7 @@
  * buffer which serves as ground truth for pixel restoration when notes
  * or the cursor are erased.
  *
- * @authors Tannaz Chowdhury, Dareen Alhudhaif
+ * @authors Tannaz Chowdhury, Dareen Nasreldin
  */
 
 #include "background.h"
