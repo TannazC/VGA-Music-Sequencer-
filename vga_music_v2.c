@@ -752,6 +752,29 @@ static void inject_note(int col, int staff, int slot, int nt, int acc, int page)
     num_notes++;
 }
 
+/* Perfectly beams two distinct pitches side-by-side using the provided note type */
+static void inject_pair(int col, int staff, int slot1, int slot2, int acc, int page, int nt) {
+    if (num_notes >= MAX_NOTES) return;
+    Note *n = &notes[num_notes];
+    n->step = col; n->staff = staff; n->pitch_slot = slot1; 
+    n->note_type = nt; 
+    n->duration_64 = note_duration_64[nt]; n->accidental = acc; n->page = page;
+    
+    int sx = col_to_x(col); n->num_heads = 2;
+    n->head_step[0] = col; n->head_pitch_slot[0] = slot1;
+    n->head_x[0] = sx; n->head_y[0] = row_to_y(staff * SLOTS_PER_STAFF + slot1, NULL, NULL);
+    
+    n->head_step[1] = col + 1; n->head_pitch_slot[1] = slot2;
+    n->head_x[1] = sx + STEP_W; n->head_y[1] = row_to_y(staff * SLOTS_PER_STAFF + slot2, NULL, NULL);
+    
+    n->screen_x = sx; n->screen_y = n->head_y[0];
+    
+    for (int i = 2; i < MAX_HEADS; i++) {
+        n->head_step[i] = n->head_pitch_slot[i] = 0; n->head_x[i] = n->head_y[i] = 0;
+    }
+    num_notes++;
+}
+
 static void preload_ode_to_joy(void) {
     num_notes = 0;
     int slots[128] = { 
@@ -922,7 +945,45 @@ static void preload_twinkle_twinkle(void) {
     max_pages = 2; 
     toolbar_state.bpm = 100; 
 }
+static void preload_seven_nation_army(void) {
+    num_notes = 0;
 
+    /* The White Stripes - Seven Nation Army
+       Key: E Minor (No accidentals needed)
+       Packed Visuals: Letting the audio engine handle the sustain! */
+
+    /* Staff 0: Main Riff */
+    inject_note( 1, 0,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair( 2, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 4, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 6, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 7, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Staff 1: Repeat Main Riff */
+    inject_note( 8, 0,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair( 9, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 11, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 13, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 14, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Staff 2: The Tumbling Variation */
+    inject_note( 15, 0,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair( 1, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 3, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 5, 1,  4,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 7, 1,  4, NOTE_QUARTER, ACC_NONE, 1);
+    inject_note( 8, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    /* Staff 3: Back to Main Riff */
+    inject_note(9, 1,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair(10, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair(12, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 14, 1,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 15, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+
+    max_pages = 1;
+    toolbar_state.bpm = 120;
+}
 static void preload_do_re_mi(void) {
     num_notes = 0;
     int c;
@@ -1039,7 +1100,7 @@ restart_main_menu:
         if (g_song_selection == 1) { preload_do_re_mi(); }
         else if (g_song_selection == 2) { preload_fur_elise(); }
         else if (g_song_selection == 3) { preload_ode_to_joy(); }
-        else if (g_song_selection == 4) { preload_nour_el_ain(); }
+        else if (g_song_selection == 4) { preload_seven_nation_army(); }
         else if (g_song_selection == 5) { goto restart_main_menu; }
     }
 
