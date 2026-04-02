@@ -6,7 +6,7 @@
 #include "sprites.h"
 #include "start_menu.h"
 
-int pixel_buffer_start;
+volatile int pixel_buffer_start;
 
 /* ═══════════════════════════════════════════════════════════════════════
    Hardware addresses
@@ -919,6 +919,7 @@ static void preload_do_re_mi(void) {
     max_pages = 2; 
     toolbar_state.bpm = 90;
 }
+// Make sure this is volatile globally so the compiler doesn't cache the address!
 volatile int *pixel_ctrl_global = (volatile int *)0xFF203020;
 
 // Uses the hardware registers to perform a true DMA double-buffer swap
@@ -927,9 +928,9 @@ void swap_buffers(void)
     // 1. Tell the VGA controller to swap buffers at the next vertical sync
     *pixel_ctrl_global = 1; 
     
-    // 2. Hardware Safeguard: Wait for the DMA controller to latch the command, 
-    // then wait for the VSync swap to finish. This prevents RISC-V race conditions.
-    while ((*(pixel_ctrl_global + 3) & 0x01) == 0); 
+    // 2. Hardware Safeguard: Only wait for the swap to FINISH.
+    // Do not wait for it to start (== 0). If the VSYNC happens instantly, 
+    // the CPU will miss the 1 and hang forever.
     while ((*(pixel_ctrl_global + 3) & 0x01) != 0); 
     
     // 3. The hardware has now swapped the front and back buffer registers.
