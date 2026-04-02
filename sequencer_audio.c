@@ -95,7 +95,7 @@ typedef struct {
 /* Variables living in main.c that we need to read/write */
 extern Note      notes[MAX_NOTES];
 extern int       num_notes;
-extern int       pixel_buffer_start;
+extern volatile int       pixel_buffer_start;
 extern short int bg[FB_HEIGHT][FB_WIDTH];
 extern int       cur_page;
 

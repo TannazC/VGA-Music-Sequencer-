@@ -1171,6 +1171,7 @@ restart_main_menu:
         }
 
         /* 4. Audio Controls */
+        /* 4. Audio Controls */
         if (b == KEY_Q || b == KEY_R) {
             int start_p = 1; 
 
@@ -1191,28 +1192,26 @@ restart_main_menu:
                 seq_last_note_col   = lc;
             }
 
-            // DYNAMIC PIPELINE SWITCH: Bypass double buffering to front buffer for playback speed
-            pixel_buffer_start = *(pixel_ctrl_global); 
-
             while (1) {
                 if (cur_page != start_p) cur_page = start_p;
                 
-                // Draw sequence UI directly to active screen
-                build_and_draw_background(); 
                 toolbar_state.playback = TB_STATE_PLAYING; 
-                safe_draw_toolbar(cur_note_type);
-                safe_draw_row2(cur_accidental); 
-                update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-                redraw_all_notes(); 
                 
+                // DRAW PERFECTLY OFF-SCREEN TO BOTH BUFFERS (No flicker!)
+                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+                
+                // Switch pointer to front buffer AFTER the clean frame is drawn, 
+                // so play_sequence() can draw its live playhead directly.
+                pixel_buffer_start = *pixel_ctrl_global; 
+
                 for (int p = start_p; p <= max_pages; p++) {
                     if (cur_page != p) {
                         cur_page = p;
-                        build_and_draw_background(); 
-                        safe_draw_toolbar(cur_note_type);
-                        safe_draw_row2(cur_accidental); 
-                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-                        redraw_all_notes(); 
+                        // Turn page cleanly using the back buffer!
+                        pixel_buffer_start = *(pixel_ctrl_global + 1);
+                        render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+                        // Back to front buffer for audio playback
+                        pixel_buffer_start = *pixel_ctrl_global; 
                     }
                     seq_user_stopped = 0; seq_user_restarted = 0; seq_is_playing = 1; seq_is_paused = 0;
                     play_sequence();
@@ -1231,16 +1230,21 @@ restart_main_menu:
         }
 
         /* 5. Navigation & Pitch Editing (Arrows) */
+        /* 5. Navigation & Pitch Editing (Arrows) */
         if (got_extended) {
             if (b == KEY_LEFT) { 
-                active_page_nav |= (1 << 0); 
-                if (cur_page > 1) cur_page--; 
-                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+                if (!(active_page_nav & (1 << 0))) {
+                    active_page_nav |= (1 << 0); 
+                    if (cur_page > 1) cur_page--; 
+                    sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+                }
             }
             else if (b == KEY_RIGHT) { 
-                active_page_nav |= (1 << 1); 
-                if (cur_page < max_pages) cur_page++; 
-                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+                if (!(active_page_nav & (1 << 1))) {
+                    active_page_nav |= (1 << 1); 
+                    if (cur_page < max_pages) cur_page++; 
+                    sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+                }
             }
             else if (b == KEY_UP || b == KEY_DOWN) {
                 int d = (b == KEY_UP) ? -1 : 1;
@@ -1250,6 +1254,34 @@ restart_main_menu:
                 }
             }
             got_extended = 0; continue;
+        }
+
+        /* 6. Page Structure (K/L) */
+        if (b == KEY_K) { 
+            if (!(active_page_struct & (1 << 0))) {
+                active_page_struct |= (1 << 0); 
+                if (max_pages < 8) max_pages++; 
+                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            }
+            continue; 
+        }
+        if (b == KEY_L) { 
+            if (!(active_page_struct & (1 << 1))) {
+                active_page_struct |= (1 << 1); 
+                if (max_pages > 1) { 
+                    int i = 0; 
+                    while (i < num_notes) { 
+                        if (notes[i].page == max_pages) { 
+                            notes[i] = notes[num_notes - 1]; 
+                            num_notes--; 
+                        } else i++; 
+                    } 
+                    max_pages--; 
+                    if (cur_page > max_pages) cur_page = max_pages; 
+                } 
+                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            }
+            continue; 
         }
 
         /* 6. Page Structure (K/L) */

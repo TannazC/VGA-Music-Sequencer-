@@ -23,7 +23,7 @@
 short int bg[FB_HEIGHT][FB_WIDTH];
 
 /* Provided by main VGA file — this is the base address of the frame buffer */
-extern int pixel_buffer_start;
+extern volatile int pixel_buffer_start;
 
 /* PS/2 hardware (used only for FIFO flush at the end) */
 #define PS2_BASE    0xFF200100
