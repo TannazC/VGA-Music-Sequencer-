@@ -35,8 +35,8 @@ ToolbarState toolbar_state = {
 #define BADGE_W_TRANS   31   
 #define BADGE_W1        12   
 #define BADGE_W_ACC     18
-#define BADGE_W_TMP_BTN 12  
-#define BADGE_W_TMP_VAL 28  
+#define BADGE_W_TMP_BTN 10  
+#define BADGE_W_TMP_VAL 26  
 #define BADGE_GAP       2    
 #define GROUP_SEP       8
 
