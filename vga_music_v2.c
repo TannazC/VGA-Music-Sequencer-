@@ -1073,6 +1073,7 @@ restart_main_menu:
     
     // Render the initial UI to BOTH buffers so they are perfectly synchronized from the start
     sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+    int key_n_pressed = 0;
 
     while (1) {
         int raw = ps2_read_byte(ps2); if (raw < 0) continue;
@@ -1089,8 +1090,11 @@ restart_main_menu:
                 if (b == KEY_LEFT)  { active_page_nav &= ~(1 << 0); needs_ui_update = 1; }
                 if (b == KEY_RIGHT) { active_page_nav &= ~(1 << 1); needs_ui_update = 1; }
             } else {
-                if (b == KEY_K) { active_page_struct &= ~(1 << 0); needs_ui_update = 1; }
-                if (b == KEY_L) { active_page_struct &= ~(1 << 1); needs_ui_update = 1; }
+                // Notice how K and L no longer trigger a UI update here!
+                if (b == KEY_K) { active_page_struct &= ~(1 << 0); }
+                if (b == KEY_L) { active_page_struct &= ~(1 << 1); }
+                // Reset the N key so we can clear the board again later
+                if (b == KEY_N) { key_n_pressed = 0; }
             }
             
             // Only force a redraw if a UI element actually changed state on release
@@ -1106,7 +1110,6 @@ restart_main_menu:
             got_extended = 0; 
             continue;
         }
-
         /* 1. Toggle Menu Logic */
         if (b == KEY_M) {
             if (menu_open) {
@@ -1122,8 +1125,11 @@ restart_main_menu:
         }
 
         if (b == KEY_N) { 
-            num_notes = 0; 
-            sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            if (!key_n_pressed) {
+                key_n_pressed = 1;
+                num_notes = 0; 
+                sync_full_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            }
             continue; 
         }
 
@@ -1141,9 +1147,21 @@ restart_main_menu:
                     goto restart_main_menu;
                 }
             } else if (menu_state == MENU_STATE_INSTRUMENT) {
-                if (b == KEY_1) { toolbar_set_instrument(TB_INST_BEEP); continue; }
-                if (b == KEY_2) { toolbar_set_instrument(TB_INST_PIANO); continue; }
-                if (b == KEY_3) { toolbar_set_instrument(3); continue; } 
+                if (b == KEY_1) { 
+                    toolbar_set_instrument(TB_INST_BEEP); 
+                    sync_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
+                    continue; 
+                }
+                if (b == KEY_2) { 
+                    toolbar_set_instrument(TB_INST_PIANO); 
+                    sync_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
+                    continue; 
+                }
+                if (b == KEY_3) { 
+                    toolbar_set_instrument(3); 
+                    sync_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
+                    continue; 
+                } 
                 if (b == KEY_5) {
                     menu_state = MENU_STATE_MAIN;
                     sync_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
