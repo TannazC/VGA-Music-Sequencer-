@@ -841,33 +841,33 @@ static void preload_seven_nation_army(void) {
     /* The White Stripes - Seven Nation Army*/
 
     /* Staff 0: Main Riff */
-    inject_note( 1, 0,  2, NOTE_HALF, ACC_NONE, 1);
-    inject_pair( 2, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_pair( 4, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_note( 6, 0,  4, NOTE_HALF,    ACC_NONE, 1);
-    inject_note( 7, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 1, 0,  2, NOTE_QUARTER, ACC_NONE, 1);
+    inject_pair( 3, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 5, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 7, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 8, 0,  5, NOTE_HALF,    ACC_NONE, 1);
 
-    /* Staff 1: Repeat Main Riff */
-    inject_note( 8, 0,  2, NOTE_HALF, ACC_NONE, 1);
-    inject_pair( 9, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_pair( 11, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_note( 13, 0,  4, NOTE_HALF,    ACC_NONE, 1);
-    inject_note( 14, 0,  5, NOTE_HALF,    ACC_NONE, 1);
+    /* Repeat Main Riff */
+    inject_note( 9, 0,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair( 10, 0,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 12, 0,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 14, 0,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 15, 0,  5, NOTE_HALF,    ACC_NONE, 1);
 
     /* Staff 2: The Tumbling Variation */
-    inject_note( 15, 0,  2, NOTE_HALF, ACC_NONE, 1);
-    inject_pair( 1, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_pair( 3, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_pair( 5, 1,  4,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_note( 7, 1,  4, NOTE_QUARTER, ACC_NONE, 1);
-    inject_note( 8, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 16, 0,  2, NOTE_QUARTER, ACC_NONE, 1);
+    inject_pair( 2, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 4, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair( 6, 1,  4,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 8, 1,  4, NOTE_QUARTER, ACC_NONE, 1);
+    inject_note( 9, 1,  5, NOTE_HALF,    ACC_NONE, 1);
 
     /* Staff 3: Back to Main Riff */
-    inject_note(9, 1,  2, NOTE_HALF, ACC_NONE, 1);
-    inject_pair(10, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_pair(12, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
-    inject_note( 14, 1,  4, NOTE_HALF,    ACC_NONE, 1);
-    inject_note( 15, 1,  5, NOTE_HALF,    ACC_NONE, 1);
+    inject_note(10, 1,  2, NOTE_HALF, ACC_NONE, 1);
+    inject_pair(11, 1,  2,  0, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_pair(13, 1,  2,  3, ACC_NONE, 1, NOTE_BEAM2_8TH);
+    inject_note( 15, 1,  4, NOTE_HALF,    ACC_NONE, 1);
+    inject_note( 16, 1,  5, NOTE_HALF,    ACC_NONE, 1);
 
     max_pages = 1;
     toolbar_state.bpm = 120;
