@@ -304,66 +304,44 @@ static void silence(volatile audio_t *audiop, int num_samples)
 }
 
 /* Volume multiplier for sampled instruments.
-   clamp24() prevents distortion if samples peak too high. */
-#define SAMPLE_AMP  2048
+   Raised from 350 to 768 so piano/xylophone RMS matches the beep square wave. */
+#define SAMPLE_AMP  768
+
+/* Number of samples at the end of a piano buffer to loop for sustain.
+   Piano samples fully decay to silence at ~91% of their length, so
+   looping the last SUSTAIN_LOOP_LEN samples before that silence region
+   gives a smooth held-note extension without the attack repeating. */
+#define SUSTAIN_LOOP_LEN  256
 
 static void play_sample_buf(volatile audio_t *audiop,
                             const int16_t *buf, int buf_len,
                             int num_samples, int one_shot)
 {
-    /* one_shot = 1  -> xylophone: play 1:1, silence when sample exhausted.
-       one_shot = 0  -> piano: stretch the ENTIRE sample to fill num_samples
-                        exactly.  rate = buf_len / num_samples (16.16 fixed
-                        point).  When num_samples > buf_len the rate is < 1
-                        and every source sample is held a little longer —
-                        identical to stretching the whole recording in a DAW.
-                        Linear interpolation prevents aliasing clicks.       */
+    /* one_shot = 1  -> play sample once, then output silence (xylophone)
+       one_shot = 0  -> play sample once, then loop tail for sustain (piano) */
     int t;
-
-    if (buf_len <= 0 || num_samples <= 0) {
-        silence(audiop, num_samples);
-        return;
-    }
-
-    if (one_shot) {
-        /* Xylophone: straight 1:1 playback, silence after sample ends */
-        for (t = 0; t < num_samples; t++) {
-            int32_t s = (t < buf_len)
-                        ? clamp24((int32_t)buf[t] * SAMPLE_AMP)
-                        : 0;
-            while (audiop->wsrc == 0 || audiop->wslc == 0) ;
-            audiop->ldata = (uint32_t)s;
-            audiop->rdata = (uint32_t)s;
-        }
-        return;
-    }
-
-    /* Piano: whole-sample time-stretch.
-       rate_fp = buf_len / num_samples  in 16.16 fixed point.
-       The read cursor advances by rate_fp each output sample, so after
-       num_samples steps it has consumed exactly buf_len source samples. */
-    uint32_t rate_fp = (uint32_t)(((uint32_t)buf_len << 16) / (uint32_t)num_samples);
-    uint32_t pos_fp  = 0;   /* current read position in the source buffer (16.16) */
-
     for (t = 0; t < num_samples; t++) {
-        uint32_t int_part  = pos_fp >> 16;
-        uint32_t frac_part = pos_fp & 0xFFFF;
-
-        int idx0 = (int)int_part;
-        int idx1 = idx0 + 1;
-        if (idx0 >= buf_len) idx0 = buf_len - 1;
-        if (idx1 >= buf_len) idx1 = buf_len - 1;
-
-        int32_t v0     = (int32_t)buf[idx0];
-        int32_t v1     = (int32_t)buf[idx1];
-        int32_t interp = v0 + (int32_t)(((int64_t)(v1 - v0) * (int32_t)frac_part) >> 16);
-        int32_t s      = clamp24(interp * SAMPLE_AMP);
-
-        while (audiop->wsrc == 0 || audiop->wslc == 0) ;
+        int32_t s;
+        if (buf_len <= 0) {
+            s = 0;
+        } else if (t < buf_len) {
+            /* Still inside the recorded sample — play it straight through */
+            s = clamp24((int32_t)buf[t] * SAMPLE_AMP);
+        } else if (one_shot) {
+            /* Xylophone / percussive: natural decay finished, output silence */
+            s = 0;
+        } else {
+            /* Piano sustain: loop a short tail segment from just before the
+               silence region so the note sounds held rather than cut off */
+            int loop_start = buf_len - SUSTAIN_LOOP_LEN;
+            if (loop_start < 0) loop_start = 0;
+            int loop_idx = loop_start + ((t - buf_len) % SUSTAIN_LOOP_LEN);
+            s = clamp24((int32_t)buf[loop_idx] * SAMPLE_AMP);
+        }
+        while (audiop->wsrc == 0 || audiop->wslc == 0)
+            ;
         audiop->ldata = (uint32_t)s;
         audiop->rdata = (uint32_t)s;
-
-        pos_fp += rate_fp;
     }
 }
 
@@ -380,6 +358,7 @@ static void get_sample_buf(int inst, int slot, int accidental,
 {
     if (slot < 0 || slot >= 11) { *out_buf = 0; *out_len = 0; return; }
 
+    /* Select the right table set based on instrument */
     const int16_t * const *nat_tbl;
     const int              *nat_len;
     const int16_t * const *sharp_tbl;
@@ -433,6 +412,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
     int inst = toolbar_state.instrument;
 
     for (i = 0; i < num_notes; i++) {
+        /* Only check notes on the currently active page and staff */
         if (notes[i].staff != s || notes[i].page != cur_page) continue;
 
         for (h = 0; h < notes[i].num_heads; h++) {
@@ -460,7 +440,7 @@ static void play_column(volatile audio_t *audiop, int col, int s)
                 }
                 found = 1;
             }
-            break;
+            break; 
         }
     }
 
@@ -509,12 +489,12 @@ void play_sequence(void)
                     if (b == 0x2C) { 
                         seq_is_playing = 0;
                         seq_is_paused = 0; 
-                        seq_user_stopped = 1;
+                        seq_user_stopped = 1; /* Notify main.c to break the page loop */
                     }
                     if (b == 0x2D) {
                         seq_is_playing = 0;
                         seq_is_paused = 0; 
-                        seq_user_restarted = 1;
+                        seq_user_restarted = 1; /* Notify main.c to restart at Page 1 */
                     }
                 }
 
@@ -527,6 +507,8 @@ void play_sequence(void)
             play_column(audiop, col, s);
             erase_playhead();
 
+            /* If this is the last-note page+staff and we just finished the last
+               column that contains a note, stop immediately - no more sound. */
             if (seq_last_note_page >= 1
                     && cur_page == seq_last_note_page
                     && s == seq_last_note_staff
@@ -537,6 +519,7 @@ void play_sequence(void)
         }
     }
     
+    /* Final cleanup */
     audiop->control = 0xC;
     audiop->control = 0x0;
 
