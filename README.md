@@ -1,4 +1,5 @@
 # VGA Music Sequencer — DE1-SoC
+Co-Authors: Tannaz Chowdhury & Dareen Nasreldin
 
 An embedded step sequencer implemented in C on the DE1-SoC FPGA board. Compose music on a sheet-music-style grid rendered over VGA, play it back in real time through the onboard audio output, and edit notes live using a PS/2 keyboard.
 
