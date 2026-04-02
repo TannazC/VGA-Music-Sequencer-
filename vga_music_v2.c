@@ -596,7 +596,7 @@ void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
 
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
 {
-    for (int y = 215; y < FB_HEIGHT; y++) for (int x =50; x < (65 + FB_WIDTH); x++) plot_pixel(x, y, bg[y][x]);
+    for (int y = 215; y < FB_HEIGHT; y++) for (int x =50; x < (65 + FB_WIDTH/4); x++) plot_pixel(x, y, bg[y][x]);
     g_drawing_ui = 1;
     tb_draw_string(5, 222, "CURRENT:", BLACK);
     draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
@@ -919,18 +919,78 @@ static void preload_do_re_mi(void) {
     max_pages = 2; 
     toolbar_state.bpm = 90;
 }
+volatile int *pixel_ctrl_global = (volatile int *)0xFF203020;
+
+// Uses the hardware registers to perform a true DMA double-buffer swap
+void swap_buffers(void)
+{
+    // 1. Tell the VGA controller to swap buffers at the next vertical sync
+    *pixel_ctrl_global = 1; 
+    
+    // 2. Poll the status register (offset 3) until the 'S' bit (bit 0) becomes 0
+    register int status;
+    status = *(pixel_ctrl_global + 3);
+    while ((status & 0x01) != 0) {
+        status = *(pixel_ctrl_global + 3);
+    }
+    
+    // 3. The hardware has now swapped the front and back buffer registers.
+    // We update our drawing pointer to the new back buffer address.
+    pixel_buffer_start = *(pixel_ctrl_global + 1);
+}
+
+void render_frame(int cur_note_type, int cur_accidental, int cur_page, int max_pages, int cur_x, int cur_y)
+{
+    build_and_draw_background(); 
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental); 
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    redraw_all_notes(); 
+    draw_cursor_cell(cur_x, cur_y);
+    
+    // Execute hardware swap
+    swap_buffers();
+}
+
+void render_menu_overlay(int cur_note_type, int cur_accidental, int cur_page, int max_pages, int cur_x, int cur_y, int menu_state) 
+{
+    build_and_draw_background(); 
+    safe_draw_toolbar(cur_note_type);
+    safe_draw_row2(cur_accidental); 
+    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    redraw_all_notes(); 
+    draw_cursor_cell(cur_x, cur_y);
+
+    g_drawing_ui = 1; 
+    if (menu_state == MENU_STATE_MAIN) {
+        draw_options_menu(); 
+    } else {
+        draw_options_menu_instrument();
+    }
+    g_drawing_ui = 0;
+
+    // Execute hardware swap
+    swap_buffers();
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Main Loop
    ═══════════════════════════════════════════════════════════════════════ */
 int main(void)
 {
-    volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
     volatile int *ps2 = (volatile int *)PS2_BASE;
-    pixel_buffer_start = *pixel_ctrl; *(pixel_ctrl + 1) = pixel_buffer_start;
+    
+    // Initialize DMA Buffers
+    // The standard default front buffer is already set by the system.
+    // We assign the back buffer to a safe SDRAM address for RISC-V.
+    *(pixel_ctrl_global + 1) = 0x02000000;
+    
     keyboard_init();
 
 restart_main_menu:
+    // DRAW DIRECTLY TO FRONT BUFFER FOR STATIC START MENUS
+    pixel_buffer_start = *pixel_ctrl_global;
+
     num_notes = 0; cur_page = 1; max_pages = 1; g_start_screen_active = 1;
     
     int got_break = 0, got_extended = 0, menu_open = 0, menu_state = MENU_STATE_MAIN;
@@ -992,12 +1052,12 @@ restart_main_menu:
         else if (g_song_selection == 5) { goto restart_main_menu; }
     }
 
-    build_and_draw_background(); safe_draw_toolbar(cur_note_type);
-    safe_draw_row2(cur_accidental); update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    // ENABLE DOUBLE BUFFERING FOR SEQUENCER UI
+    pixel_buffer_start = *(pixel_ctrl_global + 1);
 
     int cur_col = 1, cur_row = 0, cur_staff = 0, cur_slot = 0;
     int cur_x = col_to_x(cur_col), cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
-    redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+    render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
 
     while (1) {
         int raw = ps2_read_byte(ps2); if (raw < 0) continue;
@@ -1013,7 +1073,8 @@ restart_main_menu:
             }
             if (b == KEY_K) active_page_struct &= ~(1 << 0);
             if (b == KEY_L) active_page_struct &= ~(1 << 1);
-            safe_draw_row2(cur_accidental);
+            
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             got_break = 0; got_extended = 0; continue;
         }
 
@@ -1022,25 +1083,27 @@ restart_main_menu:
             if (menu_open) {
                 menu_open = 0;
                 menu_state = MENU_STATE_MAIN;
-                build_and_draw_background(); safe_draw_toolbar(cur_note_type);
-                safe_draw_row2(cur_accidental); update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-                redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             } else {
                 menu_open = 1;
                 menu_state = MENU_STATE_MAIN;
-                g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
+                render_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
             }
             continue;
         }
 
-        if (b == KEY_N) { clear_all_notes_and_reload(cur_note_type, cur_accidental, cur_x, cur_y); continue; }
+        if (b == KEY_N) { 
+            num_notes = 0; 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            continue; 
+        }
 
         /* 2. Two-Tier Menu State Machine */
         if (menu_open) {
             if (menu_state == MENU_STATE_MAIN) {
                 if (b == KEY_1) {
                     menu_state = MENU_STATE_INSTRUMENT;
-                    g_drawing_ui = 1; draw_options_menu_instrument(); g_drawing_ui = 0;
+                    render_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
                     continue;
                 }
                 if (b == KEY_2) {
@@ -1054,14 +1117,14 @@ restart_main_menu:
                 if (b == KEY_3) { toolbar_set_instrument(3); continue; } 
                 if (b == KEY_5) {
                     menu_state = MENU_STATE_MAIN;
-                    g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
+                    render_menu_overlay(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y, menu_state);
                     continue;
                 }
             }
             continue;
         }
 
-        /* 3. Note Selection (Explicit checking prevents swallowing WASD) */
+        /* 3. Note Selection */
         int is_note_key = (b == KEY_1 || b == KEY_2 || b == KEY_3 || b == KEY_4 ||
                            b == KEY_5 || b == KEY_6 || b == KEY_7 || b == KEY_8);
         if (is_note_key) {
@@ -1073,23 +1136,21 @@ restart_main_menu:
             if (b == KEY_6) cur_note_type = NOTE_BEAM2_16TH;
             if (b == KEY_7) cur_note_type = NOTE_SINGLE16TH;
             if (b == KEY_8) { cur_note_type = NOTE_REST; cur_accidental = ACC_NONE; }
-            safe_set_note_type(cur_note_type); update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+            
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             continue;
         }
 
         /* 4. Audio Controls */
         if (b == KEY_Q || b == KEY_R) {
-            int start_p = 1; /* Q and R both always restart from page 1 */
+            int start_p = 1; 
 
-            /* Compute last page+staff+col containing any note so the playhead
-               stops right after it instead of scrolling through empty space. */
             {
                 int lp = -1, ls = -1, lc = -1, i;
                 for (i = 0; i < num_notes; i++) {
                     int np = notes[i].page;
                     int ns = notes[i].staff;
                     int nc_max = notes[i].head_step[notes[i].num_heads - 1];
-                    /* Compare: later page wins; then later staff; then later col */
                     if (np > lp
                         || (np == lp && ns > ls)
                         || (np == lp && ns == ls && nc_max > lc)) {
@@ -1101,41 +1162,90 @@ restart_main_menu:
                 seq_last_note_col   = lc;
             }
 
+            // DYNAMIC PIPELINE SWITCH: Bypass double buffering to front buffer for playback speed
+            pixel_buffer_start = *(pixel_ctrl_global); 
+
             while (1) {
-                if (cur_page != start_p) switch_page(start_p, cur_x, cur_y);
-                toolbar_state.playback = TB_STATE_PLAYING; safe_draw_toolbar(cur_note_type);
+                if (cur_page != start_p) cur_page = start_p;
+                
+                // Draw sequence UI directly to active screen
+                build_and_draw_background(); 
+                toolbar_state.playback = TB_STATE_PLAYING; 
+                safe_draw_toolbar(cur_note_type);
+                safe_draw_row2(cur_accidental); 
+                update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+                redraw_all_notes(); 
+                
                 for (int p = start_p; p <= max_pages; p++) {
-                    if (cur_page != p) switch_page(p, cur_x, cur_y);
+                    if (cur_page != p) {
+                        cur_page = p;
+                        build_and_draw_background(); 
+                        safe_draw_toolbar(cur_note_type);
+                        safe_draw_row2(cur_accidental); 
+                        update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+                        redraw_all_notes(); 
+                    }
                     seq_user_stopped = 0; seq_user_restarted = 0; seq_is_playing = 1; seq_is_paused = 0;
                     play_sequence();
                     if (seq_user_restarted || seq_user_stopped) break;
-                    /* Stop advancing pages once we have passed the last note page */
                     if (seq_last_note_page >= 1 && p >= seq_last_note_page) break;
                 }
                 if (seq_user_restarted) { start_p = 1; continue; }
                 break;
             }
+            
+            // RESTORE DOUBLE BUFFER PIPELINE FOR UI NAVIGATION
+            pixel_buffer_start = *(pixel_ctrl_global + 1); 
             seq_is_playing = 0; toolbar_state.playback = TB_STATE_STOPPED;
-            safe_draw_toolbar(cur_note_type); redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             continue;
         }
 
         /* 5. Navigation & Pitch Editing (Arrows) */
         if (got_extended) {
-            if (b == KEY_LEFT) { active_page_nav |= (1 << 0); switch_page(cur_page - 1, cur_x, cur_y); safe_draw_row2(cur_accidental); }
-            else if (b == KEY_RIGHT) { active_page_nav |= (1 << 1); switch_page(cur_page + 1, cur_x, cur_y); safe_draw_row2(cur_accidental); }
+            if (b == KEY_LEFT) { 
+                active_page_nav |= (1 << 0); 
+                if (cur_page > 1) cur_page--; 
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            }
+            else if (b == KEY_RIGHT) { 
+                active_page_nav |= (1 << 1); 
+                if (cur_page < max_pages) cur_page++; 
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            }
             else if (b == KEY_UP || b == KEY_DOWN) {
                 int d = (b == KEY_UP) ? -1 : 1;
                 if (move_note_head(cur_col, cur_staff, cur_slot, d)) {
-                    cur_row += d; cur_y = row_to_y(cur_row, &cur_staff, &cur_slot); draw_cursor_cell(cur_x, cur_y);
+                    cur_row += d; cur_y = row_to_y(cur_row, &cur_staff, &cur_slot); 
+                    render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
                 }
             }
             got_extended = 0; continue;
         }
 
         /* 6. Page Structure (K/L) */
-        if (b == KEY_K) { active_page_struct |= (1 << 0); if (max_pages < 8) max_pages++; update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); safe_draw_row2(cur_accidental); continue; }
-        if (b == KEY_L) { active_page_struct |= (1 << 1); if (max_pages > 1) { int i = 0; while (i < num_notes) { if (notes[i].page == max_pages) { notes[i] = notes[num_notes - 1]; num_notes--; } else i++; } max_pages--; if (cur_page > max_pages) switch_page(max_pages, cur_x, cur_y); else update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages); } safe_draw_row2(cur_accidental); continue; }
+        if (b == KEY_K) { 
+            active_page_struct |= (1 << 0); 
+            if (max_pages < 8) max_pages++; 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            continue; 
+        }
+        if (b == KEY_L) { 
+            active_page_struct |= (1 << 1); 
+            if (max_pages > 1) { 
+                int i = 0; 
+                while (i < num_notes) { 
+                    if (notes[i].page == max_pages) { 
+                        notes[i] = notes[num_notes - 1]; 
+                        num_notes--; 
+                    } else i++; 
+                } 
+                max_pages--; 
+                if (cur_page > max_pages) cur_page = max_pages; 
+            } 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y); 
+            continue; 
+        }
 
         /* 7. Accidentals (ZXCV) */
         if (b == KEY_Z || b == KEY_X || b == KEY_C || b == KEY_V) {
@@ -1143,7 +1253,8 @@ restart_main_menu:
             if (b == KEY_X) cur_accidental = (cur_accidental == ACC_SHARP) ? ACC_NONE : ACC_SHARP;
             if (b == KEY_C) cur_accidental = (cur_accidental == ACC_FLAT) ? ACC_NONE : ACC_FLAT;
             if (b == KEY_V) cur_accidental = (cur_accidental == ACC_NATURAL) ? ACC_NONE : ACC_NATURAL;
-            safe_draw_row2(cur_accidental); update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+            
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             continue;
         }
 
@@ -1151,15 +1262,31 @@ restart_main_menu:
         if (b == KEY_SPACE) {
             if (cur_note_type == NOTE_REST) {
                 int rs = SLOTS_PER_STAFF / 2; int rr = cur_staff * SLOTS_PER_STAFF + rs; int ry = row_to_y(rr, 0, 0);
-                place_note(cur_col, cur_staff, rs, cur_x, ry, cur_note_type); redraw_all_notes(); draw_cursor_cell(cur_x, ry);
-            } else place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+                place_note(cur_col, cur_staff, rs, cur_x, ry, cur_note_type); 
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, ry);
+            } else {
+                place_note(cur_col, cur_staff, cur_slot, cur_x, cur_y, cur_note_type);
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+            }
             continue;
         }
-        if (b == KEY_DELETE) { delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y); continue; }
+        if (b == KEY_DELETE) { 
+            delete_note(cur_col, cur_staff, cur_slot, cur_x, cur_y); 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+            continue; 
+        }
 
         /* 9. Tempo */
-        if (b == KEY_MINUS) { toolbar_set_bpm(toolbar_state.bpm - 5); safe_draw_toolbar(cur_note_type); continue; }
-        if (b == KEY_EQUALS) { toolbar_set_bpm(toolbar_state.bpm + 5); safe_draw_toolbar(cur_note_type); continue; }
+        if (b == KEY_MINUS) { 
+            toolbar_set_bpm(toolbar_state.bpm - 5); 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+            continue; 
+        }
+        if (b == KEY_EQUALS) { 
+            toolbar_set_bpm(toolbar_state.bpm + 5); 
+            render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
+            continue; 
+        }
 
         /* 10. Cursor Movement (WASD) */
         if (b == KEY_W || b == KEY_A || b == KEY_S || b == KEY_D) {
@@ -1170,13 +1297,12 @@ restart_main_menu:
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) nc++;
             
             if (nc != cur_col || nr != cur_row) {
-                erase_cursor_cell(cur_x, cur_y); cur_col = nc; cur_row = nr;
+                cur_col = nc; cur_row = nr;
                 cur_x = col_to_x(cur_col); cur_y = row_to_y(cur_row, &cur_staff, &cur_slot);
-                redraw_all_notes(); draw_cursor_cell(cur_x, cur_y);
+                render_frame(cur_note_type, cur_accidental, cur_page, max_pages, cur_x, cur_y);
             }
             continue;
         }
-        pixel_buffer_start = *pixel_ctrl;
     }
     return 0;
 }
