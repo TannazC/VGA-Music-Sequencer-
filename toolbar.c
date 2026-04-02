@@ -44,7 +44,7 @@ ToolbarState toolbar_state = {
    Colour palette  (RGB 5-6-5)
    ======================================================================= */
 /* Base Toolbar Colors */
-#define TB_BG           ((short int)0xDEFB)  
+#define TB_BG           RGB565(220, 170, 190) 
 #define TB_BORDER       COLOR_BLACK          
 #define TB_DIV          COLOR_BLACK          
 

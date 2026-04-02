@@ -47,7 +47,7 @@
 #define COLOR_MUTED_NEON_BLUE RGB565( 69, 185, 220)
 #define COLOR_WHITE           RGB565(255, 255, 255)
 #define COLOR_BLACK           RGB565(  0,   0,   0)
-#define COLOR_GRAY            RGB565(100, 100, 100)
+#define COLOR_GRAY            RGB565(200, 150, 170)
 
 /* -- Toolbar vertical extent -- 
    In Compact 2-Row mode, each row is 22px tall. Total = 44px. */
