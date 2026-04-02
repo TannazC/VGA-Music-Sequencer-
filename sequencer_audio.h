@@ -1,27 +1,37 @@
-/*
- * sequencer_audio.h
- * ─────────────────────────────────────────────────────────────────────
- * Include this in vga_music_v2.c to wire up playback.
+/**
+ * @file sequencer_audio.h
+ * @brief Public interface for the sequencer playback engine.
  *
- * In vga_music_v2.c, add at the top:
- *     #include "sequencer_audio.h"
+ * Include this header in vga_music_v2.c and call play_sequence() from the
+ * main keyboard loop to trigger playback. The audio engine handles all
+ * timing, instrument selection, playhead animation, and transport control
+ * internally.
  *
- * In the main keyboard loop, add:
- *     if (b == KEY_Q) play_sequence();
+ * Usage:
+ * @code
+ *   #include "sequencer_audio.h"
+ *   // inside the PS/2 keyboard loop:
+ *   if (b == KEY_Q) play_sequence();
+ * @endcode
  *
- * That is all. The audio file handles everything else.
- * ─────────────────────────────────────────────────────────────────────
+ * @authors Tannaz Chowdhury, Dareen Nasreldin
  */
 
 #ifndef SEQUENCER_AUDIO_H
 #define SEQUENCER_AUDIO_H
 
-#define KEY_Q  0x15   /* PS/2 Set-2 scancode for Q */
+/** @brief PS/2 Set-2 scancode for the Q key (triggers playback). */
+#define KEY_Q 0x15
 
-/* Trigger full playback: staff 0 bar → staff 1 → staff 2 → staff 3.
-   Green playhead animates column by column on the active staff only.
-   Audio plays each column's notes as square waves at the correct pitch.
-   Returns when the full sequence has finished. */
+/**
+ * @brief Plays the full sequence for the current page.
+ *
+ * Iterates staff 0 → staff 3, column by column. For each column, draws the
+ * green playhead, plays all notes on that column at the current BPM and
+ * instrument setting, then erases the playhead. Polls the PS/2 keyboard
+ * between columns for pause, stop, and restart commands. Returns once the
+ * last note column has played or the user stops playback.
+ */
 void play_sequence(void);
 
 #endif /* SEQUENCER_AUDIO_H */
