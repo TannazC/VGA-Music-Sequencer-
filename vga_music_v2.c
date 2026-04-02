@@ -920,22 +920,31 @@ static void preload_do_re_mi(void) {
     toolbar_state.bpm = 90;
 }
 // Make sure this is volatile globally so the compiler doesn't cache the address!
+// Make sure this is volatile globally so the compiler doesn't cache the address!
 volatile int *pixel_ctrl_global = (volatile int *)0xFF203020;
 
+unsigned int buffer1;
+unsigned int buffer2;
+
+// Uses the hardware registers to perform a true DMA double-buffer swap
 // Uses the hardware registers to perform a true DMA double-buffer swap
 void swap_buffers(void)
 {
     // 1. Tell the VGA controller to swap buffers at the next vertical sync
     *pixel_ctrl_global = 1; 
     
-    // 2. Hardware Safeguard: Only wait for the swap to FINISH.
-    // Do not wait for it to start (== 0). If the VSYNC happens instantly, 
-    // the CPU will miss the 1 and hang forever.
+    // 2. Hardware Safeguard: Wait for the swap to FINISH.
     while ((*(pixel_ctrl_global + 3) & 0x01) != 0); 
     
-    // 3. The hardware has now swapped the front and back buffer registers.
-    // We update our drawing pointer to the new back buffer address.
-    pixel_buffer_start = *(pixel_ctrl_global + 1);
+    // 3. The hardware just copied Back -> Front.
+    // We MUST manually update the Back Buffer to point to the hidden memory!
+    if (*(pixel_ctrl_global + 1) == buffer2) {
+        *(pixel_ctrl_global + 1) = buffer1;
+        pixel_buffer_start = buffer1;
+    } else {
+        *(pixel_ctrl_global + 1) = buffer2;
+        pixel_buffer_start = buffer2;
+    }
 }
 
 void render_frame(int cur_note_type, int cur_accidental, int cur_page, int max_pages, int cur_x, int cur_y)
@@ -993,10 +1002,12 @@ int main(void)
 {
     volatile int *ps2 = (volatile int *)PS2_BASE;
     
-    // Initialize DMA Buffers
-    // The standard default front buffer is already set by the system.
-    // We assign the back buffer to a safe SDRAM address for RISC-V.
-    *(pixel_ctrl_global + 1) = 0x02000000;
+    // Initialize True DMA Buffers
+    buffer1 = *pixel_ctrl_global;       // Grab the system's default screen memory
+    buffer2 = buffer1 + 0x40000;        // Allocate safe space for the second buffer
+    
+    // Tell the hardware to prep buffer 2 as the back buffer
+    *(pixel_ctrl_global + 1) = buffer2;
     
     keyboard_init();
 
