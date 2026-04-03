@@ -4,6 +4,9 @@ Co-Authors: Tannaz Chowdhury & Dareen Nasreldin
 An embedded step sequencer implemented in C on the DE1-SoC FPGA board. Compose music on a sheet-music-style grid rendered over VGA, play it back in real time through the onboard audio output, and edit notes live using a PS/2 keyboard.
 
 ---
+<img width="1184" height="822" alt="image" src="https://github.com/user-attachments/assets/6eace175-08ad-4ec7-a824-d519e79dc17d" />
+<img width="1182" height="891" alt="image" src="https://github.com/user-attachments/assets/d39b6272-a281-4c03-a4f4-3fe4514d9dab" />
+
 
 ## Features
 
