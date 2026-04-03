@@ -148,4 +148,3 @@ Every placed note is stored in a flat `Note` array (max 512 entries). Each `Note
 
 All notes across all pages share one array, tagged by their `page` field. Switching pages redraws the background and replays only the notes matching the new `cur_page` value. During playback, `main()` pre-scans the array to find the last occupied page, staff, and column so playback stops immediately after the final note rather than running empty columns to the end.
 
--
