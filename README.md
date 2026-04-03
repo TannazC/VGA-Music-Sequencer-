@@ -121,6 +121,9 @@ cd path\to\vga_music_v2
 
 ## How It Works
 
+<img width="1280" height="720" alt="sequencer_pipeline (2)" src="https://github.com/user-attachments/assets/6d3e47de-5033-4da1-b09a-c188f27e47e1" />
+
+
 ### Audio engine
 
 Playback is driven by a **polling loop**. The sequencer iterates staff by staff, column by column. For each column it calls `play_column()`, which pushes a fixed number of samples directly into the WM8731 audio FIFO via memory-mapped I/O. The number of samples is determined by:
