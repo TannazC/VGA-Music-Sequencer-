@@ -59,7 +59,7 @@ static inline int32_t clamp24(int32_t x)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Note type constants  (must match vga_music_v2.c exactly)
+   Note type constants  (must match main.c exactly)
    ═══════════════════════════════════════════════════════════════════════ */
 #define NOTE_WHOLE      0
 #define NOTE_HALF       1
@@ -77,7 +77,7 @@ static inline int32_t clamp24(int32_t x)
 #define ACC_NATURAL 3
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Grid constants  (must match background.h / vga_music_v2.c)
+   Grid constants  (must match background.h / main.c)
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** @brief Pitch slots per staff: lines, spaces, and two ledger positions. */
@@ -93,7 +93,7 @@ static inline int32_t clamp24(int32_t x)
 #define FIRST_COL        1
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Note struct  (must be identical to vga_music_v2.c)
+   Note struct  (must be identical to main.c)
    ═══════════════════════════════════════════════════════════════════════ */
 #define MAX_NOTES 512
 #define MAX_HEADS 4
@@ -124,7 +124,7 @@ typedef struct {
 } Note;
 #endif /* NOTE_STRUCT_DEFINED */
 
-/* ── Externs from vga_music_v2.c ── */
+/* ── Externs from main.c ── */
 extern Note      notes[MAX_NOTES];
 extern int       num_notes;
 extern int       pixel_buffer_start;
@@ -510,21 +510,6 @@ static void play_sample_buf(volatile audio_t *audiop,
     }
 }
 
-/**
- * @brief Legacy wrapper for piano playback. Calls play_sample_buf with
- *        sustain enabled and the default SAMPLE_AMP amplitude.
- *
- * @param audiop      Pointer to the mapped audio peripheral.
- * @param buf         PCM sample array.
- * @param buf_len     Number of samples in buf.
- * @param num_samples Total samples to push.
- */
-static void play_piano_buf(volatile audio_t *audiop,
-                           const int16_t *buf, int buf_len,
-                           int num_samples)
-{
-    play_sample_buf(audiop, buf, buf_len, num_samples, 0, SAMPLE_AMP);
-}
 
 /**
  * @brief Resolves a PCM buffer pointer and length for the given instrument,
@@ -578,23 +563,6 @@ static void get_sample_buf(int inst, int slot, int accidental,
     default:
         *out_buf = nat_tbl[slot];   *out_len = nat_len[slot];   break;
     }
-}
-
-/**
- * @brief Legacy wrapper: resolves a piano PCM buffer by slot, accidental,
- *        and reverb flag.
- *
- * @param slot       Pitch slot (0–10).
- * @param accidental ACC_NONE, ACC_SHARP, or ACC_FLAT.
- * @param reverb     Non-zero selects the piano reverb variant.
- * @param out_buf    Output: pointer to the PCM array.
- * @param out_len    Output: sample count.
- */
-static void get_piano_buf(int slot, int accidental, int reverb,
-                           const int16_t **out_buf, int *out_len)
-{
-    int inst = reverb ? TB_INST_PIANO_REVERB : TB_INST_PIANO;
-    get_sample_buf(inst, slot, accidental, out_buf, out_len);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -1,5 +1,5 @@
 /**
- * @file vga_music_v2.c
+ * @file main.c
  * @brief Main entry point and sequencer logic for the VGA music sequencer.
  *
  * Owns the note array, cursor state, page management, and the top-level PS/2
@@ -143,6 +143,17 @@ int seq_last_note_col   = -1;
  *        note/cursor drawing (excludes toolbar rows 0–45).
  */
 #define UI_SAFE_ZONE 46
+
+/**
+ * @brief Pauses the CPU until the VGA controller reaches the vertical blanking interval.
+ * Prevents memory bus contention and screen tearing during massive pixel redraws.
+ */
+static void wait_for_vsync(void) 
+{
+    volatile int *pixel_ctrl = (volatile int *)PIXEL_BUF_CTRL;
+    *pixel_ctrl = 1; // Request a dummy buffer swap
+    while ((*(pixel_ctrl + 3) & 0x01) != 0); // Wait for VSYNC hardware flag
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Note type constants and lookup tables
@@ -308,7 +319,9 @@ static int row_to_y(int row, int *staff_out, int *slot_out)
 void plot_pixel(int x, int y, short int c)
 {
     if (x < 0 || x >= FB_WIDTH || y < 0 || y >= FB_HEIGHT) return;
-    if (y < UI_SAFE_ZONE && !g_start_screen_active && !g_drawing_ui) return;
+    
+    if ((y < UI_SAFE_ZONE || y >= 215) && !g_start_screen_active && !g_drawing_ui) return;
+    
     *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = c;
 }
 
@@ -415,7 +428,16 @@ static void erase_cursor_cell(int cx, int cy)
     for (y = y0; y <= y1; y++)
         for (x = x0; x <= x1; x++)
             if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT)
-                plot_pixel(x, y, bg[y][x]);
+                restore_pixel(x, y);
+}
+
+static void erase_menu_area(void)
+{
+    for (int y = UI_SAFE_ZONE; y < 215; y++) {
+        for (int x = 0; x < FB_WIDTH; x++) {
+            *(volatile short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = bg[y][x];
+        }
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -836,9 +858,21 @@ void draw_mini_note_glyph(int cx, int cy, int nt, int accidental, short int c)
  */
 void update_note_indicator(int nt, int accidental, int cur_p, int max_p)
 {
-    for (int y = 215; y < FB_HEIGHT; y++)
-        for (int x = 50; x < (65 + FB_WIDTH); x++)
+    g_drawing_ui = 1;
+
+    // 1. Surgical clear for the Note Glyph area
+    for (int y = 215; y < FB_HEIGHT; y++) {
+        for (int x = 50; x < (FB_WIDTH/4); x++) {
             plot_pixel(x, y, bg[y][x]);
+        }
+    }
+        // 1. Surgical clear for the page number
+    for (int y = 215; y < FB_HEIGHT; y++) {
+        for (int x = (FB_WIDTH/2); x < (FB_WIDTH/2)+(FB_WIDTH/8); x++) {
+            plot_pixel(x, y, bg[y][x]);
+        }
+    }
+    
     g_drawing_ui = 1;
     tb_draw_string(5, 222, "CURRENT:", BLACK);
     draw_mini_note_glyph(65, 230, nt, (nt == NOTE_REST) ? ACC_NONE : accidental, BLACK);
@@ -864,9 +898,8 @@ static void switch_page(int new_page, int cur_x, int cur_y)
 {
     if (new_page < 1 || new_page > max_pages) return;
     cur_page = new_page;
-    build_and_draw_background();
-    safe_draw_toolbar(cur_note_type);
-    safe_draw_row2(cur_accidental);
+    wait_for_vsync();
+    erase_menu_area();
     update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
     redraw_all_notes();
     draw_cursor_cell(cur_x, cur_y);
@@ -882,14 +915,12 @@ static void switch_page(int new_page, int cur_x, int cur_y)
  * @param cur_x          Cursor X pixel.
  * @param cur_y          Cursor Y pixel.
  */
-static void clear_all_notes_and_reload(int cur_note_type, int cur_accidental,
-                                        int cur_x, int cur_y)
+static void clear_all_notes_and_reload(int cur_nt, int cur_acc, int cur_x, int cur_y)
 {
     num_notes = 0;
-    build_and_draw_background();
-    safe_draw_toolbar(cur_note_type);
-    safe_draw_row2(cur_accidental);
-    update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+    wait_for_vsync();
+    erase_menu_area();
+    update_note_indicator(cur_nt, cur_acc, cur_page, max_pages);
     draw_cursor_cell(cur_x, cur_y);
 }
 
@@ -1064,6 +1095,7 @@ static void delete_note(int cur_col, int cur_staff, int cur_slot,
         for (int h = 0; h < notes[i].num_heads; h++) {
             if (notes[i].head_step[h] == cur_col &&
                 notes[i].head_pitch_slot[h] == cur_slot) {
+                wait_for_vsync();
                 erase_note_instance(&notes[i]);
                 notes[i] = notes[num_notes - 1];
                 num_notes--;
@@ -1500,19 +1532,19 @@ restart_main_menu:
 
         /* 1. Options menu toggle */
         if (b == KEY_M) {
+            wait_for_vsync();
             if (menu_open) {
-                menu_open  = 0;
+                menu_open = 0;
                 menu_state = MENU_STATE_MAIN;
-                build_and_draw_background();
-                safe_draw_toolbar(cur_note_type);
-                safe_draw_row2(cur_accidental);
-                update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
+                erase_menu_area();
                 redraw_all_notes();
                 draw_cursor_cell(cur_x, cur_y);
             } else {
-                menu_open  = 1;
+                menu_open = 1;
                 menu_state = MENU_STATE_MAIN;
-                g_drawing_ui = 1; draw_options_menu(); g_drawing_ui = 0;
+                g_drawing_ui = 1;
+                draw_options_menu();
+                g_drawing_ui = 0;
             }
             continue;
         }
@@ -1637,7 +1669,6 @@ restart_main_menu:
             active_page_struct |= (1 << 0);
             if (max_pages < 8) max_pages++;
             update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
-            safe_draw_row2(cur_accidental);
             continue;
         }
         if (b == KEY_L) {
@@ -1652,7 +1683,6 @@ restart_main_menu:
                 if (cur_page > max_pages) switch_page(max_pages, cur_x, cur_y);
                 else update_note_indicator(cur_note_type, cur_accidental, cur_page, max_pages);
             }
-            safe_draw_row2(cur_accidental);
             continue;
         }
 
@@ -1698,6 +1728,7 @@ restart_main_menu:
             if (b == KEY_A && cur_col > 1)              nc--;
             if (b == KEY_D && cur_col < TOTAL_COLS - 1) nc++;
             if (nc != cur_col || nr != cur_row) {
+                wait_for_vsync();
                 erase_cursor_cell(cur_x, cur_y);
                 cur_col = nc; cur_row = nr;
                 cur_x = col_to_x(cur_col);

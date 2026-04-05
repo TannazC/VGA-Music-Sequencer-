@@ -15,7 +15,7 @@
 #include "background.h"
 #include "skinny_font.h"
 
-/** @brief plot_pixel is defined in vga_music_v2.c. */
+/** @brief plot_pixel is defined in main.c. */
 extern void plot_pixel(int x, int y, short int c);
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -611,11 +611,19 @@ static void menu_draw_row(int y, const char *label, const char *key,
  */
 void draw_options_menu(void)
 {
-    tb_fill(MENU_X0 + 4, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER);
+    // Right edge shadow
+    tb_fill(MENU_X1, MENU_Y0 + 4, MENU_X1 + 4, MENU_Y1 + 4, TB_BORDER);
+    // Bottom edge shadow
+    tb_fill(MENU_X0 + 4, MENU_Y1, MENU_X1 - 1, MENU_Y1 + 4, TB_BORDER);
+    
+    // NEW: Menu Outline (Draws a solid black base)
     tb_fill(MENU_X0, MENU_Y0, MENU_X1, MENU_Y1, COLOR_BLACK);
+    
+    // Inner menu background (Draws over the black base, leaving a 2px border)
     tb_fill(MENU_X0 + 2, MENU_Y0 + 2, MENU_X1 - 2, MENU_Y1 - 2, TB_BG);
 
-    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", COLOR_CITRIC);
+    tb_draw_string(MENU_X0 + 45, MENU_Y0 + 10, "OPTIONS MENU", DARK_PINK);
+    
     tb_hline(MENU_X0 + 10, MENU_X1 - 10, MENU_Y0 + 24, COLOR_BLACK);
 
     menu_draw_row(MENU_Y0 + 45, "CHANGE INSTRUMENT", "1", TB_PLAY_FILL, COLOR_WHITE, 0);

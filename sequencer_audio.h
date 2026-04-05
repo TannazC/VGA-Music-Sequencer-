@@ -2,7 +2,7 @@
  * @file sequencer_audio.h
  * @brief Public interface for the sequencer playback engine.
  *
- * Include this header in vga_music_v2.c and call play_sequence() from the
+ * Include this header in main.c and call play_sequence() from the
  * main keyboard loop to trigger playback. The audio engine handles all
  * timing, instrument selection, playhead animation, and transport control
  * internally.

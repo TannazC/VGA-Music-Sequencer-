@@ -69,7 +69,7 @@
 /**
  * @brief Y-coordinate of the top staff line for each staff, indexed 0–3.
  *
- * Defined in background.c. Read by vga_music_v2.c and sequencer_audio.c
+ * Defined in background.c. Read by main.c and sequencer_audio.c
  * to convert between grid rows and screen pixel positions.
  */
 extern const int staff_top[NUM_STAVES];
@@ -78,7 +78,7 @@ extern const int staff_top[NUM_STAVES];
  * @brief Software copy of every visible pixel on screen.
  *
  * Maintained by background.c and kept in sync with the VGA hardware frame
- * buffer at all times. Used by vga_music_v2.c and sequencer_audio.c to
+ * buffer at all times. Used by main.c and sequencer_audio.c to
  * restore pixels underneath the cursor, erased notes, and the playhead
  * without reading back from VGA memory.
  */

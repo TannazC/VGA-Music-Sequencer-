@@ -38,7 +38,7 @@ An embedded step sequencer implemented in C on the DE1-SoC FPGA board. Compose m
 
 **Tab 1:**
 ```
-cd path\to\vga_music_v2
+cd path\to\main
 ./gmake DE1-SoC
 ./gmake DETECT_DEVICES
 ./gmake GDB_SERVER        ← leave this tab open
@@ -46,7 +46,7 @@ cd path\to\vga_music_v2
 
 **Tab 2 (new PowerShell window):**
 ```
-cd path\to\vga_music_v2
+cd path\to\main
 ./gmake
 ./gmake GDB_CLIENT
 ```
@@ -55,8 +55,8 @@ cd path\to\vga_music_v2
 
 1. Close the GDB_CLIENT tab (`Ctrl+C` or close the window)
 2. Close the GDB_SERVER tab (`Ctrl+C` or close the window) — **this step is mandatory**
-3. In Tab 1: `cd` into `vga_music_v2`, then `./gmake GDB_SERVER`
-4. In Tab 2: `cd` into `vga_music_v2`, then `./gmake` and `./gmake GDB_CLIENT`
+3. In Tab 1: `cd` into `main`, then `./gmake GDB_SERVER`
+4. In Tab 2: `cd` into `main`, then `./gmake` and `./gmake GDB_CLIENT`
 
 > If the keyboard does not respond after loading, the GDB server was not restarted. The server caches the old `.elf` in memory. Always restart it when changing programs.
 

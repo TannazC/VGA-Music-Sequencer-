@@ -13,7 +13,7 @@
 #include "toolbar.h"
 #include "background.h"
 
-/** @brief plot_pixel is defined in vga_music_v2.c. */
+/** @brief plot_pixel is defined in main.c. */
 extern void plot_pixel(int x, int y, short int c);
 
 /** @brief Non-zero while the start or song-select screen is active. */
@@ -43,90 +43,6 @@ int g_song_selection = 1;
    ═══════════════════════════════════════════════════════════════════════ */
 #define SCREEN_W 320
 #define SCREEN_H 240
-
-/* ═══════════════════════════════════════════════════════════════════════
-   5x7 bitmap font
-   ═══════════════════════════════════════════════════════════════════════ */
-
-/** @brief ASCII value of the first character defined in the font table. */
-#define FONT_START 32
-
-/** @brief ASCII value of the last character defined in the font table. */
-#define FONT_END   90
-
-/** @brief Width of one font glyph in pixels. */
-#define FONT_W 5
-
-/** @brief Height of one font glyph in pixels. */
-#define FONT_H 7
-
-/**
- * @brief 5x7 bitmap font covering ASCII 32 (' ') through 90 ('Z').
- *
- * Each entry is an array of FONT_H bytes. Within each byte, bit 4 (0x10)
- * is the leftmost pixel of that row and bit 0 is the rightmost.
- */
-static const unsigned char font[][FONT_H] = {
-/* ' ' 32 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '!' 33 */ {0x04,0x04,0x04,0x04,0x04,0x00,0x04},
-/* '"' 34 */ {0x0A,0x0A,0x00,0x00,0x00,0x00,0x00},
-/* '#' 35 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '$' 36 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '%' 37 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '&' 38 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* ''' 39 */ {0x04,0x04,0x00,0x00,0x00,0x00,0x00},
-/* '(' 40 */ {0x02,0x04,0x04,0x04,0x04,0x04,0x02},
-/* ')' 41 */ {0x08,0x04,0x04,0x04,0x04,0x04,0x08},
-/* '*' 42 */ {0x00,0x15,0x0E,0x1F,0x0E,0x15,0x00},
-/* '+' 43 */ {0x00,0x04,0x04,0x1F,0x04,0x04,0x00},
-/* ',' 44 */ {0x00,0x00,0x00,0x00,0x06,0x04,0x08},
-/* '-' 45 */ {0x00,0x00,0x00,0x1F,0x00,0x00,0x00},
-/* '.' 46 */ {0x00,0x00,0x00,0x00,0x00,0x06,0x06},
-/* '/' 47 */ {0x01,0x01,0x02,0x04,0x08,0x10,0x10},
-/* '0' 48 */ {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},
-/* '1' 49 */ {0x04,0x0C,0x04,0x04,0x04,0x04,0x1F},
-/* '2' 50 */ {0x0E,0x11,0x01,0x06,0x08,0x10,0x1F},
-/* '3' 51 */ {0x0E,0x11,0x01,0x06,0x01,0x11,0x0E},
-/* '4' 52 */ {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02},
-/* '5' 53 */ {0x1F,0x10,0x10,0x1E,0x01,0x01,0x1E},
-/* '6' 54 */ {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},
-/* '7' 55 */ {0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
-/* '8' 56 */ {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},
-/* '9' 57 */ {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
-/* ':' 58 */ {0x00,0x06,0x06,0x00,0x06,0x06,0x00},
-/* ';' 59 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '<' 60 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '=' 61 */ {0x00,0x00,0x1F,0x00,0x1F,0x00,0x00},
-/* '>' 62 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* '?' 63 */ {0x0E,0x11,0x01,0x06,0x04,0x00,0x04},
-/* '@' 64 */ {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-/* 'A' 65 */ {0x04,0x0A,0x11,0x1F,0x11,0x11,0x11},
-/* 'B' 66 */ {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E},
-/* 'C' 67 */ {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E},
-/* 'D' 68 */ {0x1E,0x11,0x11,0x11,0x11,0x11,0x1E},
-/* 'E' 69 */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F},
-/* 'F' 70 */ {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10},
-/* 'G' 71 */ {0x0E,0x11,0x10,0x17,0x11,0x11,0x0E},
-/* 'H' 72 */ {0x11,0x11,0x11,0x1F,0x11,0x11,0x11},
-/* 'I' 73 */ {0x1F,0x04,0x04,0x04,0x04,0x04,0x1F},
-/* 'J' 74 */ {0x1F,0x01,0x01,0x01,0x01,0x11,0x0E},
-/* 'K' 75 */ {0x11,0x12,0x14,0x18,0x14,0x12,0x11},
-/* 'L' 76 */ {0x10,0x10,0x10,0x10,0x10,0x10,0x1F},
-/* 'M' 77 */ {0x11,0x1B,0x15,0x15,0x11,0x11,0x11},
-/* 'N' 78 */ {0x11,0x19,0x15,0x13,0x11,0x11,0x11},
-/* 'O' 79 */ {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E},
-/* 'P' 80 */ {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10},
-/* 'Q' 81 */ {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D},
-/* 'R' 82 */ {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11},
-/* 'S' 83 */ {0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E},
-/* 'T' 84 */ {0x1F,0x04,0x04,0x04,0x04,0x04,0x04},
-/* 'U' 85 */ {0x11,0x11,0x11,0x11,0x11,0x11,0x0E},
-/* 'V' 86 */ {0x11,0x11,0x11,0x11,0x0A,0x0A,0x04},
-/* 'W' 87 */ {0x11,0x11,0x11,0x15,0x15,0x1B,0x11},
-/* 'X' 88 */ {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11},
-/* 'Y' 89 */ {0x11,0x11,0x0A,0x04,0x04,0x04,0x04},
-/* 'Z' 90 */ {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F},
-};
 
 /* ═══════════════════════════════════════════════════════════════════════
    Drawing primitives
@@ -194,57 +110,7 @@ static void draw_rect_outline(int x, int y, int w, int h, short int color)
     draw_vline(x + w - 1, y,         h, color);
 }
 
-/**
- * @brief Renders a single character from the bitmap font at a scaled size.
- *
- * Characters outside [FONT_START, FONT_END] are silently skipped.
- * Each font pixel is drawn as a scale×scale block.
- *
- * @param x     Top-left X of the character cell.
- * @param y     Top-left Y of the character cell.
- * @param c     ASCII character to draw.
- * @param scale Pixel scale factor (1 = native 5×7).
- * @param fg    RGB565 foreground colour.
- */
-static void draw_char(int x, int y, char c, int scale, short int fg)
-{
-    int row, col, s, t;
-    unsigned char bits;
-    int idx;
-    if ((int)c < FONT_START || (int)c > FONT_END) return;
-    idx = (int)c - FONT_START;
-    for (row = 0; row < FONT_H; row++) {
-        bits = font[idx][row];
-        for (col = 0; col < FONT_W; col++) {
-            if (bits & (0x10 >> col)) {
-                for (s = 0; s < scale; s++)
-                    for (t = 0; t < scale; t++)
-                        plot_pixel(x + col * scale + t, y + row * scale + s, fg);
-            }
-        }
-    }
-}
 
-/**
- * @brief Renders a null-terminated string and returns the X position after
- *        the last character.
- *
- * @param x     Starting X coordinate.
- * @param y     Starting Y coordinate.
- * @param str   Null-terminated ASCII string.
- * @param scale Pixel scale factor passed to draw_char().
- * @param fg    RGB565 foreground colour.
- * @return X coordinate immediately after the last character drawn.
- */
-static int draw_string(int x, int y, const char *str, int scale, short int fg)
-{
-    while (*str) {
-        draw_char(x, y, *str, scale, fg);
-        x += (FONT_W + 1) * scale;
-        str++;
-    }
-    return x;
-}
 
 /**
  * @brief Renders a string horizontally centred around a given X coordinate.
@@ -255,13 +121,13 @@ static int draw_string(int x, int y, const char *str, int scale, short int fg)
  * @param scale Pixel scale factor.
  * @param fg    RGB565 foreground colour.
  */
-static void draw_string_centered(int cx, int y, const char *str, int scale, short int fg)
+static void draw_string_centered(int cx, int y, const char *str, short int fg)
 {
-    int n = 0, total_w;
+    int n = 0;
     const char *p = str;
     while (*p++) n++;
-    total_w = n * FONT_W * scale + (n - 1) * scale;
-    draw_string(cx - total_w / 2, y, str, scale, fg);
+    int total_w = n * 6; 
+    tb_draw_string(cx - total_w / 2, y, str, fg);
 }
 
 /**
@@ -311,19 +177,21 @@ static void draw_option(int x, int y, int w, int h,
     }
 
     badge_w = h;
-
     fill_rect(x, y, w, h, box_fill);
     fill_rect(x, y, badge_w, h, badge_fill);
 
-    kx = x + (badge_w - FONT_W * 2) / 2;
-    ky = y + (h       - FONT_H * 2) / 2;
-    draw_char(kx, ky, key, 2, active ? COLOR_WHITE : COLOR_DIM_TEXT);
+    // Key badge alignment: 6px width, 9px height for the skinny font
+    char key_str[2] = {key, '\0'};
+    kx = x + (badge_w - 6) / 2;
+    ky = y + (h - 9) / 2 + 1; // Slight nudge for centering
+    tb_draw_string(kx, ky, key_str, active ? COLOR_WHITE : COLOR_DIM_TEXT);
 
     draw_vline(x + badge_w, y, h, bdr_color);
 
-    lx = x + badge_w + 6;
-    ly = y + (h - FONT_H) / 2;
-    draw_string(lx, ly, label, 1, txt_color);
+    // Label alignment
+    lx = x + badge_w + 8;
+    ly = y + (h - 9) / 2 + 1;
+    tb_draw_string(lx, ly, label, txt_color);
 
     draw_rect_outline(x, y, w, h, bdr_color);
 }
@@ -432,8 +300,7 @@ void draw_song_select_screen(void)
     draw_custom_logo_bitmap(1.5);
 
     draw_hline(50, 80, 220, COLOR_SPEARMINT);
-    draw_string_centered(SCREEN_W / 2, 85, "SELECT A SONG", 1, COLOR_SPEARMINT);
-
+    draw_string_centered(SCREEN_W / 2, 85, "SELECT A SONG", COLOR_SPEARMINT);
     update_song_selection(g_song_selection);
 }
 

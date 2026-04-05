@@ -5,7 +5,6 @@ import os
 FILES_TO_COMBINE = [
     "treble_clef_bitmap.h",
     "skinny_font.h",
-    "fat_font.h",
     "background.h",
     "toolbar.h",
     "sprites.h",
@@ -17,7 +16,7 @@ FILES_TO_COMBINE = [
     "background.c",
     "toolbar.c",
     "sequencer_audio.c",
-    "vga_music_v2.c"
+    "main.c"
 ]
 
 OUTPUT_FILE = "combined.c"

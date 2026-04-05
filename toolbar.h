@@ -14,7 +14,7 @@
  *   - / = = BPM down/up    K / L = Add/remove page
  *   ← / → = Navigate pages     N = Clear all notes
  *
- * Integration in vga_music_v2.c:
+ * Integration in main.c:
  * @code
  *   #include "toolbar.h"
  *   draw_toolbar(cur_note_type);          // after build_and_draw_background()

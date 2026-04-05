@@ -47,7 +47,7 @@
  *         under the cursor and erased notes without reading VGA memory. */
 short int bg[FB_HEIGHT][FB_WIDTH];
 
-/** @brief Base address of the VGA frame buffer. Provided by vga_music_v2.c. */
+/** @brief Base address of the VGA frame buffer. Provided by main. */
 extern int pixel_buffer_start;
 
 /** @brief Memory-mapped base address of the PS/2 peripheral. */
