@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/Tannaz/Documents/GitHub/Music_Sequencer_Assembly",
-      "program": "c:/Users/Tannaz/Documents/GitHub/Music_Sequencer_Assembly/build/Debug/outDebug",
+      "cwd": "c:/Users/daree_jrkgtcm/projects/Music_Sequencer_Assembly",
+      "program": "c:/Users/daree_jrkgtcm/projects/Music_Sequencer_Assembly/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
